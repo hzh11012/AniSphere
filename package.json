@@ -1,0 +1,34 @@
+{
+  "name": "AniSphere",
+  "version": "1.0.0",
+  "author": "Qnets",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "format": "prettier --write '**/*.{ts,js}'",
+    "clean": "rimraf node_modules pnpm-lock.yaml",
+    "prepare": "node .husky/install.mjs",
+    "syncpack:list": "npx syncpack list-mismatches",
+    "syncpack:fix": "npx syncpack fix-mismatches"
+  },
+  "engines": {
+    "node": ">=24",
+    "pnpm": ">=10"
+  },
+  "packageManager": "pnpm@10.23.0",
+  "devDependencies": {
+    "@commitlint/cli": "^20.2.0",
+    "@commitlint/config-conventional": "^20.2.0",
+    "@eslint/js": "^9.39.2",
+    "eslint": "^9.39.2",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-prettier": "^5.5.4",
+    "globals": "^16.5.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.2.7",
+    "prettier": "^3.7.4",
+    "rimraf": "^6.1.2",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.50.1"
+  }
+}
