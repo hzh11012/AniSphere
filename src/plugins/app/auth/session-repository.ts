@@ -12,13 +12,13 @@ export interface SessionData {
 
 declare module 'fastify' {
   interface FastifyInstance {
-    sessionManager: ReturnType<typeof createSessionManager>;
+    sessionRepository: ReturnType<typeof createSessionRepository>;
   }
 }
 
 const SESSION_PREFIX = 'session:';
 
-const createSessionManager = (fastify: FastifyInstance) => {
+const createSessionRepository = (fastify: FastifyInstance) => {
   const redis = fastify.redis;
   const config = fastify.config;
 
@@ -142,11 +142,11 @@ const createSessionManager = (fastify: FastifyInstance) => {
 
 export default fp(
   async (fastify: FastifyInstance) => {
-    const repo = createSessionManager(fastify);
-    fastify.decorate('sessionManager', repo);
+    const repo = createSessionRepository(fastify);
+    fastify.decorate('sessionRepository', repo);
   },
   {
-    name: 'session-manager',
+    name: 'session-repository',
     dependencies: ['redis', '@fastify/env']
   }
 );

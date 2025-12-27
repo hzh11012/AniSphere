@@ -7,7 +7,7 @@ type SendCodeBody = Static<typeof SendCodeSchema>;
 type LoginBody = Static<typeof LoginSchema>;
 
 export default async function (fastify: FastifyInstance) {
-  const { codeManager, usersRepository, sessionManager } = fastify;
+  const { verificationService, usersRepository, sessionRepository } = fastify;
 
   fastify.post<{ Body: SendCodeBody }>(
     '/send-code',
@@ -22,7 +22,7 @@ export default async function (fastify: FastifyInstance) {
     async request => {
       const { email } = request.body;
 
-      await codeManager.sendCode(email);
+      await verificationService.sendVerificationCode(email);
 
       return { message: '验证码已发送到您的邮箱' };
     }
@@ -42,7 +42,7 @@ export default async function (fastify: FastifyInstance) {
       const { email, code } = request.body;
 
       // 验证验证码
-      const verifyResult = await codeManager.verifyCode(email, code);
+      const verifyResult = await verificationService.verifyCode(email, code);
       if (verifyResult.isErr()) {
         return reply.internalServerError('服务器错误');
       }
@@ -74,7 +74,7 @@ export default async function (fastify: FastifyInstance) {
       }
 
       // 创建 session
-      const sessionResult = await sessionManager.createSession(
+      const sessionResult = await sessionRepository.createSession(
         user.id,
         user.email
       );
@@ -83,12 +83,10 @@ export default async function (fastify: FastifyInstance) {
       }
 
       const sessionId = sessionResult.value;
+
+      const cookieOptions = sessionRepository.getCookieOptions();
       // 设置 cookie
-      reply.setCookie(
-        'sessionId',
-        sessionId,
-        sessionManager.getCookieOptions()
-      );
+      reply.setCookie('sessionId', sessionId, cookieOptions);
 
       return {
         message: '登录成功'

@@ -1,6 +1,6 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import fp from 'fastify-plugin';
-import type { SessionData } from './session-manager.js';
+import type { SessionData } from './session-repository.js';
 
 declare module 'fastify' {
   interface FastifyRequest {
@@ -17,7 +17,7 @@ declare module 'fastify' {
 }
 
 const createAuthMiddleware = (fastify: FastifyInstance) => {
-  const sessionManager = fastify.sessionManager;
+  const sessionRepository = fastify.sessionRepository;
 
   return async (request: FastifyRequest, reply: FastifyReply) => {
     const sessionId = request.cookies.sessionId;
@@ -26,7 +26,7 @@ const createAuthMiddleware = (fastify: FastifyInstance) => {
       return reply.code(401).send({ message: '未登录' });
     }
 
-    const sessionResult = await sessionManager.getSession(sessionId);
+    const sessionResult = await sessionRepository.getSession(sessionId);
 
     if (sessionResult.isErr()) {
       fastify.log.error(
@@ -44,15 +44,16 @@ const createAuthMiddleware = (fastify: FastifyInstance) => {
     }
 
     // 自动续签
-    if (sessionManager.shouldRenew(session)) {
-      const renewResult = await sessionManager.renewSession(sessionId, session);
+    if (sessionRepository.shouldRenew(session)) {
+      const renewResult = await sessionRepository.renewSession(
+        sessionId,
+        session
+      );
+
+      const cookieOptions = sessionRepository.getCookieOptions();
 
       if (renewResult.isOk()) {
-        reply.setCookie(
-          'sessionId',
-          sessionId,
-          sessionManager.getCookieOptions()
-        );
+        reply.setCookie('sessionId', sessionId, cookieOptions);
       }
     }
 
@@ -72,6 +73,6 @@ export default fp(
   },
   {
     name: 'auth-middleware',
-    dependencies: ['session-manager', '@fastify/cookie']
+    dependencies: ['session-repository', '@fastify/cookie']
   }
 );

@@ -13,11 +13,11 @@ interface SendMailOptions {
 
 declare module 'fastify' {
   interface FastifyInstance {
-    mailManager: ReturnType<typeof createMailManager>;
+    mailService: ReturnType<typeof createMailService>;
   }
 }
 
-const createMailManager = (
+const createMailService = (
   fastify: FastifyInstance,
   transporter: Transporter<SMTPTransport.SentMessageInfo>
 ) => {
@@ -100,8 +100,8 @@ export default fp(
       }
     }
 
-    const repo = createMailManager(fastify, transporter);
-    fastify.decorate('mailManager', repo);
+    const service = createMailService(fastify, transporter);
+    fastify.decorate('mailService', service);
 
     fastify.addHook('onClose', async () => {
       transporter.close();
@@ -109,7 +109,7 @@ export default fp(
     });
   },
   {
-    name: 'mail-manager',
+    name: 'mail-service',
     dependencies: ['@fastify/env']
   }
 );
