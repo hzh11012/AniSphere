@@ -31,7 +31,17 @@ declare module 'fastify' {
 
 const schema = {
   type: 'object',
-  required: ['DATABASE_URL'],
+  required: [
+    'DATABASE_URL',
+    'REDIS_URL',
+    'SESSION_SECRET',
+    'SMTP_HOST',
+    'SMTP_PORT',
+    'SMTP_USER',
+    'SMTP_PASS',
+    'SMTP_FROM',
+    'CORS_ORIGINS'
+  ],
   properties: {
     // Environment
     NODE_ENV: {
@@ -84,8 +94,7 @@ const schema = {
       default: 100
     },
     CORS_ORIGINS: {
-      type: 'string',
-      default: ''
+      type: 'string'
     },
 
     // SMTP
@@ -101,12 +110,10 @@ const schema = {
       default: true
     },
     SMTP_USER: {
-      type: 'string',
-      default: ''
+      type: 'string'
     },
     SMTP_PASS: {
-      type: 'string',
-      default: ''
+      type: 'string'
     },
     SMTP_FROM: {
       type: 'string',

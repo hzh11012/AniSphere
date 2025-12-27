@@ -1,29 +1,22 @@
-import { join } from 'node:path';
-import { mkdirSync } from 'node:fs';
 import Fastify, {
   type FastifyError,
   type FastifyInstance,
   type FastifyServerOptions
 } from 'fastify';
+import { join } from 'node:path';
 import AutoLoad, { type AutoloadPluginOptions } from '@fastify/autoload';
 import type { LoggerOptions } from 'pino';
+import { randomUUID } from 'node:crypto';
 
 interface AppOptions
   extends FastifyServerOptions, Partial<AutoloadPluginOptions> {}
 
-const ROOT_DIR = join(import.meta.dirname, '../..');
-const LOGS_DIR = join(ROOT_DIR, 'logs');
 const isDev = process.env.NODE_ENV !== 'production';
-
-// 生产环境确保日志目录存在
-if (!isDev) {
-  mkdirSync(LOGS_DIR, { recursive: true });
-}
 
 // 根据环境配置日志
 const getLoggerConfig = (): LoggerOptions | boolean => {
   if (isDev) {
-    // 开发环境：只使用 pino-pretty，输出到控制台
+    // 开发环境：使用 pino-pretty，输出到控制台
     return {
       transport: {
         target: 'pino-pretty',
@@ -37,33 +30,13 @@ const getLoggerConfig = (): LoggerOptions | boolean => {
     };
   }
 
-  // 生产环境：使用多个 transport targets
-  return {
-    transport: {
-      targets: [
-        {
-          target: 'pino/file',
-          options: { destination: join(LOGS_DIR, 'info.log') },
-          level: 'info'
-        },
-        {
-          target: 'pino/file',
-          options: { destination: join(LOGS_DIR, 'warn.log') },
-          level: 'warn'
-        },
-        {
-          target: 'pino/file',
-          options: { destination: join(LOGS_DIR, 'error.log') },
-          level: 'error'
-        }
-      ]
-    },
-    level: 'info'
-  };
+  // 生产环境：输出到 stdout
+  return { level: 'info' };
 };
 
 const options: AppOptions = {
-  logger: getLoggerConfig()
+  logger: getLoggerConfig(),
+  genReqId: () => randomUUID()
 };
 
 const buildApp = async (
@@ -137,9 +110,7 @@ const buildApp = async (
         'Resource not found'
       );
 
-      reply.code(404);
-
-      return { message: 'Not Found' };
+      return reply.notFound('Not Found');
     }
   );
 

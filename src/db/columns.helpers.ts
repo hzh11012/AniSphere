@@ -1,8 +1,13 @@
-import { integer } from 'drizzle-orm/pg-core';
+import { timestamp, integer } from 'drizzle-orm/pg-core';
 
 const timestamps = {
-  createdAt: integer('created_at').notNull(),
-  updatedAt: integer('updated_at').notNull()
+  createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' })
+    .notNull()
+    .defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' })
+    .notNull()
+    .defaultNow()
+    .$onUpdate(() => new Date())
 };
 
 const versioning = {

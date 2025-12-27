@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import fp from 'fastify-plugin';
-import { toResult } from '../../../utils/result.js';
+import { randomInt } from 'node:crypto';
+import { ok } from '../../../utils/result.js';
 
 declare module 'fastify' {
   interface FastifyInstance {
@@ -18,7 +19,7 @@ const createVerificationService = (fastify: FastifyInstance) => {
      * 生成6位数字验证码
      */
     generateCode(): string {
-      return Math.floor(100000 + Math.random() * 900000).toString();
+      return randomInt(100000, 1000000).toString();
     },
 
     /**
@@ -36,18 +37,29 @@ const createVerificationService = (fastify: FastifyInstance) => {
       // 开发环境只打印日志，不发送邮件
       if (config.NODE_ENV === 'development') {
         fastify.log.info(`[DEV] 验证码: ${code} -> ${email}`);
-        return toResult(Promise.resolve(code));
+        return ok(code);
       }
 
       // 生产环境发送邮件
       const sendResult = await mailService.sendVerificationCode(email, code);
       if (sendResult.isErr()) {
+        fastify.log.error(
+          { error: sendResult.error },
+          'Failed to send verification code'
+        );
+
         // 发送失败时删除已存储的验证码
-        await codeRepository.delete(email);
+        const deleteResult = await codeRepository.delete(email);
+        if (deleteResult.isErr()) {
+          fastify.log.error(
+            { error: deleteResult.error },
+            'Failed to delete code after sending mail failed'
+          );
+        }
         return sendResult;
       }
 
-      return toResult(Promise.resolve(code));
+      return ok(code);
     },
 
     /**
@@ -63,12 +75,12 @@ const createVerificationService = (fastify: FastifyInstance) => {
       const storedCode = getResult.value;
 
       if (!storedCode || storedCode !== code) {
-        return toResult(Promise.resolve(false));
+        return ok(false);
       }
 
       // 验证成功后删除验证码（一次性使用）
       await codeRepository.delete(email);
-      return toResult(Promise.resolve(true));
+      return ok(true);
     }
   };
 };

@@ -1,5 +1,7 @@
 import { err, fromPromise, ok, Result } from 'neverthrow';
 
+export { ok, err };
+
 /**
  * 将未知异常转换为标准 Error 对象
  */

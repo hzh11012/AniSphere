@@ -7,7 +7,13 @@ type SendCodeBody = Static<typeof SendCodeSchema>;
 type LoginBody = Static<typeof LoginSchema>;
 
 export default async function (fastify: FastifyInstance) {
-  const { verificationService, usersRepository, sessionRepository } = fastify;
+  const {
+    authenticate,
+    verificationService,
+    usersRepository,
+    sessionRepository,
+    rbacRepository
+  } = fastify;
 
   fastify.post<{ Body: SendCodeBody }>(
     '/send-code',
@@ -19,10 +25,18 @@ export default async function (fastify: FastifyInstance) {
         }
       }
     },
-    async request => {
+    async (request, reply) => {
       const { email } = request.body;
 
-      await verificationService.sendVerificationCode(email);
+      const sendResult = await verificationService.sendVerificationCode(email);
+
+      if (sendResult.isErr()) {
+        fastify.log.error(
+          { error: sendResult.error },
+          'Failed to send verification code'
+        );
+        return reply.internalServerError('验证码发送失败，请稍后重试');
+      }
 
       return { message: '验证码已发送到您的邮箱' };
     }
@@ -44,6 +58,10 @@ export default async function (fastify: FastifyInstance) {
       // 验证验证码
       const verifyResult = await verificationService.verifyCode(email, code);
       if (verifyResult.isErr()) {
+        fastify.log.error(
+          { error: verifyResult.error },
+          'Failed to verify code'
+        );
         return reply.internalServerError('服务器错误');
       }
 
@@ -52,45 +70,93 @@ export default async function (fastify: FastifyInstance) {
       }
 
       // 获取用户信息
-      const userResult = await usersRepository.findByEmail(email);
+      const userResult = await usersRepository.findOrCreate(email);
       if (userResult.isErr()) {
+        fastify.log.error(
+          { error: userResult.error },
+          'Failed to find or create user'
+        );
         return reply.internalServerError('服务器错误');
       }
 
       const user = userResult.value;
 
-      // 如果用户不存在，自动注册
-      if (!user) {
-        const defaultName = `用户${Math.floor(100000 + Math.random() * 900000).toString()}`;
+      // 获取用户角色和权限
+      const [rolesResult, permissionsResult] = await Promise.all([
+        rbacRepository.getUserRoles(user.id),
+        rbacRepository.getUserPermissions(user.id)
+      ]);
 
-        const createResult = await usersRepository.create({
-          email,
-          name: defaultName
-        });
-
-        if (createResult.isErr()) {
-          return reply.internalServerError('创建用户失败');
-        }
+      if (rolesResult.isErr()) {
+        fastify.log.error(
+          { error: rolesResult.error },
+          'Failed to get user roles'
+        );
+        return reply.internalServerError('服务器错误');
       }
+
+      if (permissionsResult.isErr()) {
+        fastify.log.error(
+          { error: permissionsResult.error },
+          'Failed to get user permissions'
+        );
+        return reply.internalServerError('服务器错误');
+      }
+
+      const roles = rolesResult.value.map(r => r.code);
+      const permissions = permissionsResult.value.map(p => p.code);
 
       // 创建 session
       const sessionResult = await sessionRepository.createSession(
         user.id,
-        user.email
+        user.email,
+        roles,
+        permissions,
+        user.status
       );
       if (sessionResult.isErr()) {
+        fastify.log.error(
+          { error: sessionResult.error },
+          'Failed to create session'
+        );
         return reply.internalServerError('服务器错误');
       }
 
-      const sessionId = sessionResult.value;
-
+      const sessionToken = sessionResult.value;
       const cookieOptions = sessionRepository.getCookieOptions();
       // 设置 cookie
-      reply.setCookie('sessionId', sessionId, cookieOptions);
+      reply.setCookie('sessionToken', sessionToken, cookieOptions);
 
-      return {
-        message: '登录成功'
-      };
+      return { message: '登录成功' };
+    }
+  );
+
+  fastify.post(
+    '/logout',
+    {
+      preHandler: [authenticate],
+      schema: {
+        response: {
+          200: MessageResponseSchema
+        }
+      }
+    },
+    async (request, reply) => {
+      const sessionToken = request.sessionToken;
+
+      if (sessionToken) {
+        const deleteResult =
+          await sessionRepository.deleteSession(sessionToken);
+        if (deleteResult.isErr()) {
+          fastify.log.warn(
+            { error: deleteResult.error },
+            'Failed to delete session'
+          );
+        }
+      }
+
+      reply.clearCookie('sessionToken', { path: '/' });
+      return { message: '登出成功' };
     }
   );
 }

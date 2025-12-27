@@ -21,6 +21,22 @@ const redisPlugin = async (fastify: FastifyInstance) => {
     fastify.log.info('Redis connecting');
   });
 
+  redis.on('ready', () => {
+    fastify.log.info('Redis connection ready');
+  });
+
+  redis.on('error', err => {
+    fastify.log.error({ err }, 'Redis connection error');
+  });
+
+  redis.on('close', () => {
+    fastify.log.warn('Redis connection closed');
+  });
+
+  redis.on('reconnecting', (delay: number) => {
+    fastify.log.info({ delay }, 'Redis reconnecting...');
+  });
+
   fastify.decorate('redis', redis);
 
   fastify.addHook('onClose', async () => {
