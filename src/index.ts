@@ -1,10 +1,10 @@
 import { buildApp } from './config/app.js';
 
-const HOST = process.env.HOST ?? '0.0.0.0';
-const PORT = Number(process.env.PORT) || 3000;
-
 const start = async () => {
   const app = await buildApp();
+
+  const HOST = '0.0.0.0';
+  const PORT = app.config.PORT;
 
   try {
     await app.listen({ host: HOST, port: PORT });

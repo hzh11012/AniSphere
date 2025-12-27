@@ -42,17 +42,16 @@ const createContextualLogger = (
   return new Proxy(logger, handler);
 };
 
-export default fp(
-  async (fastify: FastifyInstance) => {
-    // 包装 fastify.log
-    const contextualLog = createContextualLogger(fastify.log);
-    fastify.log = contextualLog;
+const requestContextPlugin = async (fastify: FastifyInstance) => {
+  // 包装 fastify.log
+  const contextualLog = createContextualLogger(fastify.log);
+  fastify.log = contextualLog;
 
-    // 设置请求上下文 + 响应头
-    fastify.addHook('onRequest', async (request, reply) => {
-      requestContext.enterWith({ reqId: request.id });
-      reply.header('X-Request-Id', request.id);
-    });
-  },
-  { name: 'request-context' }
-);
+  // 设置请求上下文 + 响应头
+  fastify.addHook('onRequest', async (request, reply) => {
+    requestContext.enterWith({ reqId: request.id });
+    reply.header('X-Request-Id', request.id);
+  });
+};
+
+export default fp(requestContextPlugin, { name: 'request-context' });

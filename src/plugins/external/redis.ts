@@ -8,6 +8,11 @@ declare module 'fastify' {
   }
 }
 
+/**
+ * This plugin adds a Redis client to your app.
+ *
+ * @see {@link https://github.com/redis/node-redis}
+ */
 const redisPlugin = async (fastify: FastifyInstance) => {
   const redis = new Redis(fastify.config.REDIS_URL, {
     maxRetriesPerRequest: 3,

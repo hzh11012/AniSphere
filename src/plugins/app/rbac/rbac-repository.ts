@@ -1,12 +1,11 @@
 import type { FastifyInstance } from 'fastify';
 import fp from 'fastify-plugin';
-import { eq, sql } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import {
   rolesTable,
   permissionsTable,
   userRolesTable,
-  rolePermissionsTable,
-  usersTable
+  rolePermissionsTable
 } from '../../../db/schema.js';
 import { err, toResult } from '../../../utils/result.js';
 
@@ -63,44 +62,9 @@ const createRbacRepository = (fastify: FastifyInstance) => {
     },
 
     /**
-     * 刷新用户会话权限
-     */
-    async refreshUserSessionPermissions(userId: number) {
-      // 获取最新的角色和权限
-      const [rolesResult, permissionsResult] = await Promise.all([
-        this.getUserRoles(userId),
-        this.getUserPermissions(userId)
-      ]);
-
-      if (rolesResult.isErr()) return rolesResult;
-      if (permissionsResult.isErr()) return permissionsResult;
-
-      const roles = rolesResult.value.map(r => r.code);
-      const permissions = permissionsResult.value.map(p => p.code);
-
-      return sessionRepository.refreshUserSessionsPermissions(
-        userId,
-        roles,
-        permissions
-      );
-    },
-
-    /**
-     * 检查是否是第一个用户
-     */
-    async isFirstUser() {
-      return toResult(
-        db
-          .select({ count: sql<number>`count(*)::int` })
-          .from(usersTable)
-          .then(result => result[0]?.count === 1)
-      );
-    },
-
-    /**
      * 分配角色
      */
-    async assignDefaultRoles(userId: number, roleCode: string = 'user') {
+    async assignRoles(userId: number, roleCode: string = 'guest') {
       const roleResult = await toResult(
         db
           .select({ id: rolesTable.id })
@@ -115,7 +79,7 @@ const createRbacRepository = (fastify: FastifyInstance) => {
         return err(new Error('角色不存在'));
       }
 
-      return toResult(
+      const insertResult = await toResult(
         db
           .insert(userRolesTable)
           .values({
@@ -125,6 +89,49 @@ const createRbacRepository = (fastify: FastifyInstance) => {
           .onConflictDoNothing()
           .then(() => undefined)
       );
+
+      if (insertResult.isErr()) return insertResult;
+
+      await sessionRepository.deleteUserPermissions(userId);
+
+      return insertResult;
+    },
+
+    /**
+     * 移除角色
+     */
+    async removeRole(userId: number, roleCode: string) {
+      const roleResult = await toResult(
+        db
+          .select({ id: rolesTable.id })
+          .from(rolesTable)
+          .where(eq(rolesTable.code, roleCode))
+          .limit(1)
+          .then(roles => roles[0] ?? null)
+      );
+
+      if (roleResult.isErr()) return roleResult;
+      if (!roleResult.value) {
+        return err(new Error('角色不存在'));
+      }
+
+      const deleteResult = await toResult(
+        db
+          .delete(userRolesTable)
+          .where(
+            and(
+              eq(userRolesTable.userId, userId),
+              eq(userRolesTable.roleId, roleResult.value.id)
+            )
+          )
+          .then(() => undefined)
+      );
+
+      if (deleteResult.isErr()) return deleteResult;
+
+      await sessionRepository.deleteUserPermissions(userId);
+
+      return deleteResult;
     }
   };
 };

@@ -1,4 +1,4 @@
-import type { FastifyInstance, FastifyPluginAsync } from 'fastify';
+import type { FastifyInstance } from 'fastify';
 import fp from 'fastify-plugin';
 import fastifyRateLimit from '@fastify/rate-limit';
 
@@ -7,9 +7,7 @@ import fastifyRateLimit from '@fastify/rate-limit';
  *
  * @see {@link https://github.com/fastify/fastify-rate-limit}
  */
-const rateLimitPlugin: FastifyPluginAsync = async (
-  fastify: FastifyInstance
-) => {
+const rateLimitPlugin = async (fastify: FastifyInstance) => {
   await fastify.register(fastifyRateLimit, {
     max: fastify.config.RATE_LIMIT_MAX,
     timeWindow: '1 minute'

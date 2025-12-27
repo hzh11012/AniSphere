@@ -6,11 +6,15 @@ import { err, toResult } from '../../../utils/result.js';
 export interface SessionData {
   userId: number;
   email: string;
-  roles: string[];
-  permissions: string[];
   status: boolean;
   createdAt: number;
   lastAccessAt: number;
+}
+
+export interface UserPermissionData {
+  roles: string[];
+  permissions: string[];
+  updatedAt: number;
 }
 
 declare module 'fastify' {
@@ -20,6 +24,7 @@ declare module 'fastify' {
 }
 
 const SESSION_PREFIX = 'session:';
+const USER_PERMS_PREFIX = 'user_perms:';
 
 const createSessionRepository = (fastify: FastifyInstance) => {
   const redis = fastify.redis;
@@ -48,6 +53,13 @@ const createSessionRepository = (fastify: FastifyInstance) => {
     },
 
     /**
+     * 构建用户权限索引 key
+     */
+    buildPermsKey(userId: number): string {
+      return `${USER_PERMS_PREFIX}${userId}`;
+    },
+
+    /**
      * 验证 token 格式是否有效
      */
     isValidToken(token: string | undefined | null) {
@@ -64,9 +76,9 @@ const createSessionRepository = (fastify: FastifyInstance) => {
     async createSession(
       userId: number,
       email: string,
+      status: boolean,
       roles: string[],
-      permissions: string[],
-      status: boolean
+      permissions: string[]
     ) {
       const token = this.generateToken();
       const now = Date.now();
@@ -74,16 +86,21 @@ const createSessionRepository = (fastify: FastifyInstance) => {
       const sessionData: SessionData = {
         userId,
         email,
-        roles,
-        permissions,
         status,
         createdAt: now,
         lastAccessAt: now
       };
 
+      const permsData: UserPermissionData = {
+        roles,
+        permissions,
+        updatedAt: now
+      };
+
       const maxAgeSeconds = Math.floor(config.SESSION_MAX_AGE / 1000);
       const key = this.buildKey(token);
       const userIndexKey = this.buildUserIndexKey(userId);
+      const permsKey = this.buildPermsKey(userId);
 
       return toResult(
         (async () => {
@@ -91,6 +108,7 @@ const createSessionRepository = (fastify: FastifyInstance) => {
           pipeline.setex(key, maxAgeSeconds, JSON.stringify(sessionData));
           pipeline.sadd(userIndexKey, token);
           pipeline.expire(userIndexKey, maxAgeSeconds);
+          pipeline.setex(permsKey, maxAgeSeconds, JSON.stringify(permsData));
           await pipeline.exec();
           return token;
         })()
@@ -116,6 +134,44 @@ const createSessionRepository = (fastify: FastifyInstance) => {
     },
 
     /**
+     * 创建用户权限缓存
+     */
+    async createUserPermissions(
+      userId: number,
+      roles: string[],
+      permissions: string[]
+    ) {
+      const now = Date.now();
+
+      const permsData: UserPermissionData = {
+        roles,
+        permissions,
+        updatedAt: now
+      };
+
+      const maxAgeSeconds = Math.floor(config.SESSION_MAX_AGE / 1000);
+      const key = this.buildPermsKey(userId);
+
+      return toResult(
+        redis.setex(key, maxAgeSeconds, JSON.stringify(permsData))
+      );
+    },
+
+    /**
+     * 获取用户权限缓存
+     */
+    async getUserPermissions(userId: number) {
+      const key = this.buildPermsKey(userId);
+
+      return toResult(
+        redis.get(key).then(data => {
+          if (!data) return null;
+          return JSON.parse(data) as UserPermissionData;
+        })
+      );
+    },
+
+    /**
      * 更新 session（续签）
      */
     async renewSession(token: string, sessionData: SessionData) {
@@ -125,15 +181,20 @@ const createSessionRepository = (fastify: FastifyInstance) => {
 
       const maxAgeSeconds = Math.floor(config.SESSION_MAX_AGE / 1000);
       sessionData.lastAccessAt = Date.now();
-      const key = this.buildKey(token);
-      // 同时更新用户索引的过期时间
+      const sessionKey = this.buildKey(token);
       const userIndexKey = this.buildUserIndexKey(sessionData.userId);
+      const permsKey = this.buildPermsKey(sessionData.userId);
 
       return toResult(
         (async () => {
           const pipeline = redis.pipeline();
-          pipeline.setex(key, maxAgeSeconds, JSON.stringify(sessionData));
+          pipeline.setex(
+            sessionKey,
+            maxAgeSeconds,
+            JSON.stringify(sessionData)
+          );
           pipeline.expire(userIndexKey, maxAgeSeconds);
+          pipeline.expire(permsKey, maxAgeSeconds);
           await pipeline.exec();
         })()
       );
@@ -156,7 +217,6 @@ const createSessionRepository = (fastify: FastifyInstance) => {
         return err(new Error('Invalid token'));
       }
 
-      // 先获取 session 以获取 userId
       const sessionResult = await this.getSession(token);
       const key = this.buildKey(token);
 
@@ -180,6 +240,14 @@ const createSessionRepository = (fastify: FastifyInstance) => {
     },
 
     /**
+     * 删除用户权限缓存
+     */
+    async deleteUserPermissions(userId: number) {
+      const key = this.buildPermsKey(userId);
+      return toResult(redis.del(key).then(() => undefined));
+    },
+
+    /**
      * 删除用户所有 session
      */
     async deleteAllUserSessions(userId: number) {
@@ -198,6 +266,8 @@ const createSessionRepository = (fastify: FastifyInstance) => {
 
           // 删除用户索引
           await redis.del(userIndexKey);
+          // 删除用户权限缓存
+          await redis.del(this.buildPermsKey(userId));
         })()
       );
     },
@@ -250,23 +320,6 @@ const createSessionRepository = (fastify: FastifyInstance) => {
       }
 
       await updatePipeline.exec();
-    },
-
-    /**
-     * 刷新用户所有 session 的权限
-     */
-    async refreshUserSessionsPermissions(
-      userId: number,
-      roles: string[],
-      permissions: string[]
-    ) {
-      return toResult(
-        this.batchUpdateUserSessions(userId, session => {
-          session.roles = roles;
-          session.permissions = permissions;
-          session.lastAccessAt = Date.now();
-        })
-      );
     },
 
     /**

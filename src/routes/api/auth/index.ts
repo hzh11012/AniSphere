@@ -110,10 +110,11 @@ export default async function (fastify: FastifyInstance) {
       const sessionResult = await sessionRepository.createSession(
         user.id,
         user.email,
+        user.status,
         roles,
-        permissions,
-        user.status
+        permissions
       );
+
       if (sessionResult.isErr()) {
         fastify.log.error(
           { error: sessionResult.error },

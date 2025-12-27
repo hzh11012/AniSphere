@@ -37,7 +37,7 @@ const createVerificationService = (fastify: FastifyInstance) => {
       // 开发环境只打印日志，不发送邮件
       if (config.NODE_ENV === 'development') {
         fastify.log.info(`[DEV] 验证码: ${code} -> ${email}`);
-        return ok(code);
+        return ok(true);
       }
 
       // 生产环境发送邮件
@@ -59,7 +59,7 @@ const createVerificationService = (fastify: FastifyInstance) => {
         return sendResult;
       }
 
-      return ok(code);
+      return ok(true);
     },
 
     /**

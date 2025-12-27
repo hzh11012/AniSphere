@@ -20,7 +20,7 @@ declare module 'fastify' {
 }
 
 const createAuthMiddleware = (fastify: FastifyInstance) => {
-  const { sessionRepository } = fastify;
+  const { sessionRepository, rbacRepository } = fastify;
 
   return async (request: FastifyRequest, reply: FastifyReply) => {
     const sessionCookie = request.cookies.sessionToken;
@@ -31,10 +31,9 @@ const createAuthMiddleware = (fastify: FastifyInstance) => {
 
     const unsigned = request.unsignCookie(sessionCookie);
 
-    // 签名无效
     if (!unsigned.valid) {
       reply.clearCookie('sessionToken', { path: '/' });
-      return reply.unauthorized('无效的会话');
+      return reply.unauthorized('无效会话');
     }
 
     const sessionToken = unsigned.value;
@@ -78,11 +77,44 @@ const createAuthMiddleware = (fastify: FastifyInstance) => {
       }
     }
 
+    const cachedPerms = await sessionRepository.getUserPermissions(
+      session.userId
+    );
+
+    if (cachedPerms.isOk() && cachedPerms.value) {
+      request.permissions = cachedPerms.value.permissions;
+      request.roles = cachedPerms.value.roles;
+    } else {
+      // 缓存不存在时，从数据库重新加载并缓存
+      const [rolesResult, permissionsResult] = await Promise.all([
+        rbacRepository.getUserRoles(session.userId),
+        rbacRepository.getUserPermissions(session.userId)
+      ]);
+
+      if (rolesResult.isOk() && permissionsResult.isOk()) {
+        const roles = rolesResult.value.map(r => r.code);
+        const permissions = permissionsResult.value.map(p => p.code);
+
+        request.roles = roles;
+        request.permissions = permissions;
+
+        // 重新创建缓存
+        await sessionRepository.createUserPermissions(
+          session.userId,
+          roles,
+          permissions
+        );
+      } else {
+        // 数据库查询失败，设置为空数组
+        fastify.log.error('Failed to load user permissions from database');
+        request.roles = [];
+        request.permissions = [];
+      }
+    }
+
     request.session = session;
     request.sessionToken = sessionToken;
     request.userId = session.userId;
-    request.roles = session.roles;
-    request.permissions = session.permissions;
   };
 };
 
@@ -100,6 +132,6 @@ export default fp(
   },
   {
     name: 'auth-middleware',
-    dependencies: ['session-repository', '@fastify/cookie']
+    dependencies: ['session-repository', 'rbac-repository', '@fastify/cookie']
   }
 );

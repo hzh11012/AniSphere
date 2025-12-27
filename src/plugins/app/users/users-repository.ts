@@ -73,75 +73,55 @@ const createUsersRepository = (fastify: FastifyInstance) => {
      */
     async findOrCreate(email: string, name?: string) {
       const userName = name ?? this.generateDefaultName();
-      const FIRST_USER_LOCK_ID = 1;
 
       return toResult(
-        db.transaction(
-          async tx => {
-            // 获取 advisory lock（事务结束自动释放）
-            await tx.execute(
-              sql`SELECT pg_advisory_xact_lock(${FIRST_USER_LOCK_ID})`
-            );
+        db.transaction(async tx => {
+          // 创建或获取用户
+          const [user] = await tx
+            .insert(usersTable)
+            .values({
+              email,
+              name: userName
+            })
+            .onConflictDoUpdate({
+              target: usersTable.email,
+              set: {
+                updatedAt: sql`now()`
+              }
+            })
+            .returning();
 
-            // 检查是否是第一个用户
-            const [countResult] = await tx
-              .select({ count: sql<number>`count(*)::int` })
-              .from(usersTable);
-            const isFirstUser = (countResult?.count ?? 0) === 0;
-            const roleCode = isFirstUser ? 'admin' : 'guest';
+          if (!user) {
+            throw new Error('获取用户失败');
+          }
 
-            const [user] = await tx
-              .insert(usersTable)
-              .values({
-                email,
-                name: userName
-              })
-              .onConflictDoUpdate({
-                target: usersTable.email,
-                set: {
-                  // 不更新任何字段，只是为了返回已存在的记录
-                  updatedAt: sql`${usersTable.updatedAt}`
-                }
-              })
-              .returning();
+          // 检查用户是否已有角色
+          const existingRoles = await tx
+            .select({ id: userRolesTable.id })
+            .from(userRolesTable)
+            .where(eq(userRolesTable.userId, user.id))
+            .limit(1);
 
-            if (!user) {
-              throw new Error('创建用户失败');
-            }
-
-            // 检查用户是否已有角色
-            const existingRoles = await tx
-              .select({ id: userRolesTable.id })
-              .from(userRolesTable)
-              .where(eq(userRolesTable.userId, user.id))
+          // 新用户才分配角色
+          if (existingRoles.length === 0) {
+            const [role] = await tx
+              .select({ id: rolesTable.id })
+              .from(rolesTable)
+              .where(eq(rolesTable.code, 'guest'))
               .limit(1);
 
-            // 新用户才分配角色
-            if (existingRoles.length === 0) {
-              const [role] = await tx
-                .select({ id: rolesTable.id })
-                .from(rolesTable)
-                .where(eq(rolesTable.code, roleCode))
-                .limit(1);
-
-              if (!role) {
-                throw new Error(
-                  `角色 ${roleCode} 不存在，请先初始化 RBAC 数据`
-                );
-              }
-
-              await tx.insert(userRolesTable).values({
-                userId: user.id,
-                roleId: role.id
-              });
+            if (!role) {
+              throw new Error(`角色 guest 不存在，请先初始化 RBAC 数据`);
             }
 
-            return user;
-          },
-          {
-            isolationLevel: 'serializable'
+            await tx.insert(userRolesTable).values({
+              userId: user.id,
+              roleId: role.id
+            });
           }
-        )
+
+          return user;
+        })
       );
     }
   };

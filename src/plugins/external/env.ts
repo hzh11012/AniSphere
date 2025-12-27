@@ -1,3 +1,5 @@
+import type { FastifyInstance } from 'fastify';
+import fp from 'fastify-plugin';
 import env from '@fastify/env';
 
 declare module 'fastify' {
@@ -6,6 +8,7 @@ declare module 'fastify' {
       NODE_ENV: string;
       PORT: number;
       DATABASE_URL: string;
+      ADMIN_EMAIL: string;
       RATE_LIMIT_MAX: number;
       CORS_ORIGINS: string;
       // Database pool configuration
@@ -33,10 +36,10 @@ const schema = {
   type: 'object',
   required: [
     'DATABASE_URL',
+    'ADMIN_EMAIL',
     'REDIS_URL',
     'SESSION_SECRET',
     'SMTP_HOST',
-    'SMTP_PORT',
     'SMTP_USER',
     'SMTP_PASS',
     'SMTP_FROM',
@@ -51,6 +54,11 @@ const schema = {
     PORT: {
       type: 'number',
       default: 3000
+    },
+
+    // Admin
+    ADMIN_EMAIL: {
+      type: 'string'
     },
 
     // Database
@@ -116,15 +124,9 @@ const schema = {
       type: 'string'
     },
     SMTP_FROM: {
-      type: 'string',
-      default: 'AniSphere <noreply@example.com>'
+      type: 'string'
     }
   }
-};
-
-export const autoConfig = {
-  schema,
-  dotenv: true
 };
 
 /**
@@ -132,4 +134,13 @@ export const autoConfig = {
  *
  * @see {@link https://github.com/fastify/fastify-env}
  */
-export default env;
+const envPlugin = async (fastify: FastifyInstance) => {
+  await fastify.register(env, {
+    schema,
+    dotenv: true
+  });
+};
+
+export default fp(envPlugin, {
+  name: '@fastify/env'
+});

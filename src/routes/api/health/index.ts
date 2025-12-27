@@ -1,20 +1,5 @@
 import { FastifyInstance } from 'fastify';
-import { Type } from '@sinclair/typebox';
-
-const HealthResponseSchema = Type.Object({
-  status: Type.String(),
-  timestamp: Type.Number(),
-  uptime: Type.Number(),
-  environment: Type.String(),
-  database: Type.Object({
-    status: Type.String(),
-    latency: Type.Optional(Type.Number())
-  }),
-  redis: Type.Object({
-    status: Type.String(),
-    latency: Type.Optional(Type.Number())
-  })
-});
+import { HealthResponseSchema } from '../../../schemas/health.js';
 
 export default async function (fastify: FastifyInstance) {
   fastify.get(
