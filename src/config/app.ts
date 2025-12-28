@@ -44,15 +44,15 @@ const buildApp = async (
 ): Promise<FastifyInstance> => {
   const fastify = Fastify(opts);
 
-  // 加载外部插件
+  // 加载第三方库
   await fastify.register(AutoLoad, {
-    dir: join(import.meta.dirname, '../plugins/external'),
+    dir: join(import.meta.dirname, '../core/external'),
     options: { ...opts }
   });
 
-  // 加载应用插件
+  // 加载应用库
   await fastify.register(AutoLoad, {
-    dir: join(import.meta.dirname, '../plugins/app'),
+    dir: join(import.meta.dirname, '../core/app'),
     options: { ...opts }
   });
 
