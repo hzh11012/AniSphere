@@ -7,6 +7,8 @@ declare module 'fastify' {
     config: {
       NODE_ENV: string;
       PORT: number;
+      TZ: string;
+      PLUGIN_MARKET_URL: string;
       DATABASE_URL: string;
       ADMIN_EMAIL: string;
       RATE_LIMIT_MAX: number;
@@ -36,6 +38,7 @@ const schema = {
   type: 'object',
   required: [
     'DATABASE_URL',
+    'PLUGIN_MARKET_URL',
     'ADMIN_EMAIL',
     'REDIS_URL',
     'SESSION_SECRET',
@@ -54,6 +57,13 @@ const schema = {
     PORT: {
       type: 'number',
       default: 3000
+    },
+    TZ: {
+      type: 'string',
+      default: 'Asia/Shanghai'
+    },
+    PLUGIN_MARKET_URL: {
+      type: 'string'
     },
 
     // Admin

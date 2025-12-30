@@ -42,3 +42,5 @@ yarn-error.log*
 
 logs
 drizzle
+data
+src/plugins/*

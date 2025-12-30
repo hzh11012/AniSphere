@@ -1,4 +1,4 @@
-import { FastifyInstance } from 'fastify';
+import type { FastifyInstance } from 'fastify';
 import { HealthResponseSchema } from '../../../schemas/health.js';
 
 export default async function (fastify: FastifyInstance) {

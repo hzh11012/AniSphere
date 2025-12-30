@@ -53,6 +53,9 @@ const buildApp = async (
   // 加载应用库
   await fastify.register(AutoLoad, {
     dir: join(import.meta.dirname, '../core/app'),
+    ignoreFilter(path) {
+      return /plugins\/plugin-(?!service(?:\.|\/|$))[\w-]+/.test(path);
+    },
     options: { ...opts }
   });
 
