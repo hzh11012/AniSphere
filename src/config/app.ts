@@ -46,16 +46,13 @@ const buildApp = async (
 
   // 加载第三方库
   await fastify.register(AutoLoad, {
-    dir: join(import.meta.dirname, '../core/external'),
+    dir: join(import.meta.dirname, '../plugins/external'),
     options: { ...opts }
   });
 
   // 加载应用库
   await fastify.register(AutoLoad, {
-    dir: join(import.meta.dirname, '../core/app'),
-    ignoreFilter(path) {
-      return /plugins\/plugin-(?!service(?:\.|\/|$))[\w-]+/.test(path);
-    },
+    dir: join(import.meta.dirname, '../plugins/app'),
     options: { ...opts }
   });
 
