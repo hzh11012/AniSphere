@@ -1,10 +1,11 @@
 import { FastifyInstance } from 'fastify';
-import { SendCodeSchema, LoginSchema } from '../../../schemas/auth.js';
-import { MessageResponseSchema } from '../../../schemas/common.js';
-import { Static } from '@sinclair/typebox';
-
-type SendCodeBody = Static<typeof SendCodeSchema>;
-type LoginBody = Static<typeof LoginSchema>;
+import {
+  SendCodeSchema,
+  LoginSchema,
+  type SendCodeBody,
+  type LoginBody
+} from '../../../schemas/auth.js';
+import { SuccessResponseSchema } from '../../../schemas/common.js';
 
 export default async function (fastify: FastifyInstance) {
   const {
@@ -21,7 +22,7 @@ export default async function (fastify: FastifyInstance) {
       schema: {
         body: SendCodeSchema,
         response: {
-          200: MessageResponseSchema
+          200: SuccessResponseSchema()
         }
       }
     },
@@ -38,7 +39,7 @@ export default async function (fastify: FastifyInstance) {
         return reply.internalServerError('验证码发送失败，请稍后重试');
       }
 
-      return { message: '验证码已发送到您的邮箱' };
+      return reply.success('验证码已发送到您的邮箱');
     }
   );
 
@@ -48,7 +49,7 @@ export default async function (fastify: FastifyInstance) {
       schema: {
         body: LoginSchema,
         response: {
-          200: MessageResponseSchema
+          200: SuccessResponseSchema()
         }
       }
     },
@@ -128,7 +129,7 @@ export default async function (fastify: FastifyInstance) {
       // 设置 cookie
       reply.setCookie('sessionToken', sessionToken, cookieOptions);
 
-      return { message: '登录成功' };
+      return reply.success('登录成功');
     }
   );
 
@@ -138,7 +139,7 @@ export default async function (fastify: FastifyInstance) {
       preHandler: [authenticate],
       schema: {
         response: {
-          200: MessageResponseSchema
+          200: SuccessResponseSchema()
         }
       }
     },
@@ -157,7 +158,8 @@ export default async function (fastify: FastifyInstance) {
       }
 
       reply.clearCookie('sessionToken', { path: '/' });
-      return { message: '登出成功' };
+
+      return reply.success('登出成功');
     }
   );
 }

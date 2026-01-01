@@ -1,33 +1,36 @@
-import { Type } from '@sinclair/typebox';
+import { z } from 'zod';
 
-export const StringSchema = Type.String({
-  minLength: 1,
-  maxLength: 255
-});
+/**
+ * 邮箱 Schema
+ */
+export const EmailSchema = z.email().min(1).max(255);
 
-export const EmailSchema = Type.String({
-  format: 'email',
-  minLength: 1,
-  maxLength: 255
-});
+/**
+ * ID Schema
+ */
+export const IdSchema = z.number().min(1);
 
-export const IdSchema = Type.Integer({ minimum: 1 });
+/**
+ * 成功响应 Schema
+ */
+export const SuccessResponseSchema = <T extends z.ZodTypeAny>(
+  dataSchema?: T
+) => {
+  const base = z.object({
+    code: z.literal(200),
+    message: z.string()
+  });
 
-export const MessageResponseSchema = Type.Object({
-  message: Type.String()
-});
+  if (dataSchema) {
+    return base.extend({ data: dataSchema });
+  }
+  return base;
+};
 
-export const PaginationQuerySchema = Type.Object({
-  page: Type.Optional(Type.Integer({ minimum: 1, default: 1 })),
-  pageSize: Type.Optional(
-    Type.Integer({ minimum: 1, maximum: 100, default: 10 })
-  )
-});
-
-export const ListResponseSchema = Type.Object({
-  message: Type.String(),
-  data: Type.Object({
-    items: Type.Array(Type.Any()),
-    total: Type.Integer()
-  })
+/**
+ * 分页查询 Schema
+ */
+export const PaginationQuerySchema = z.object({
+  page: z.number().min(1).default(1).optional(),
+  pageSize: z.number().min(1).max(50).default(10).optional()
 });

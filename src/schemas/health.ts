@@ -1,16 +1,16 @@
-import { Type } from '@sinclair/typebox';
+import { z } from 'zod';
 
-export const HealthResponseSchema = Type.Object({
-  status: Type.String(),
-  timestamp: Type.Number(),
-  uptime: Type.Number(),
-  environment: Type.String(),
-  database: Type.Object({
-    status: Type.String(),
-    latency: Type.Optional(Type.Number())
+export const HealthResponseSchema = z.object({
+  status: z.string(),
+  timestamp: z.number(),
+  uptime: z.number(),
+  environment: z.string(),
+  database: z.object({
+    status: z.string(),
+    latency: z.optional(z.number())
   }),
-  redis: Type.Object({
-    status: Type.String(),
-    latency: Type.Optional(Type.Number())
+  redis: z.object({
+    status: z.string(),
+    latency: z.optional(z.number())
   })
 });

@@ -1,11 +1,15 @@
-import { Type } from '@sinclair/typebox';
+import { z } from 'zod';
 import { EmailSchema } from './common.js';
 
-export const SendCodeSchema = Type.Object({
+export const SendCodeSchema = z.object({
   email: EmailSchema
 });
 
-export const LoginSchema = Type.Object({
+export type SendCodeBody = z.infer<typeof SendCodeSchema>;
+
+export const LoginSchema = z.object({
   email: EmailSchema,
-  code: Type.String({ pattern: '^[0-9]{6}$' })
+  code: z.string().length(6).regex(/^\d+$/)
 });
+
+export type LoginBody = z.infer<typeof LoginSchema>;

@@ -21,11 +21,11 @@ export default async function (fastify: FastifyInstance) {
         uptime: process.uptime(),
         environment: fastify.config.NODE_ENV,
         database: {
-          status: 'ok' as string,
+          status: 'ok',
           latency: undefined as number | undefined
         },
         redis: {
-          status: 'ok' as string,
+          status: 'ok',
           latency: undefined as number | undefined
         }
       };
@@ -60,7 +60,7 @@ export default async function (fastify: FastifyInstance) {
         return reply.serviceUnavailable().send(health);
       }
 
-      return health;
+      return reply.success('获取健康状态成功', health);
     }
   );
 }

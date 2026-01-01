@@ -36,7 +36,6 @@ const schema = {
   type: 'object',
   required: [
     'DATABASE_URL',
-    'PLUGIN_MARKET_URL',
     'ADMIN_EMAIL',
     'REDIS_URL',
     'SESSION_SECRET',
