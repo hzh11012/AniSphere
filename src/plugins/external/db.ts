@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import fp from 'fastify-plugin';
-import * as schema from '../../db/schema.js';
+import * as schema from '../../db/index.js';
 import { drizzle, NodePgDatabase } from 'drizzle-orm/node-postgres';
 import pg, { type Pool } from 'pg';
 

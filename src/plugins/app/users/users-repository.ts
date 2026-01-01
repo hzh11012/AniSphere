@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import fp from 'fastify-plugin';
 import { eq, sql } from 'drizzle-orm';
-import { usersTable } from '../../../db/schema.js';
+import { usersTable } from '../../../db/index.js';
 import { toResult } from '../../../utils/result.js';
 import { randomInt } from 'node:crypto';
 

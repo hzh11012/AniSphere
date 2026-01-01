@@ -64,6 +64,9 @@ const buildApp = async (
     options: { ...opts }
   });
 
+  // 初始化应用
+  await fastify.seeder.seed();
+
   return fastify;
 };
 
