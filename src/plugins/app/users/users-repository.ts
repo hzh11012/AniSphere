@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import fp from 'fastify-plugin';
 import { eq, sql } from 'drizzle-orm';
-import { rolesTable, userRolesTable, usersTable } from '../../../db/schema.js';
+import { usersTable } from '../../../db/schema.js';
 import { toResult } from '../../../utils/result.js';
 import { randomInt } from 'node:crypto';
 
@@ -67,7 +67,7 @@ const createUsersRepository = (fastify: FastifyInstance) => {
     },
 
     /**
-     * 查找或注册用户（事务）
+     * 查找或注册用户
      * - 如果用户存在，直接返回
      * - 如果用户不存在，注册新用户并分配角色
      */
@@ -75,53 +75,17 @@ const createUsersRepository = (fastify: FastifyInstance) => {
       const userName = name ?? this.generateDefaultName();
 
       return toResult(
-        db.transaction(async tx => {
-          // 创建或获取用户
-          const [user] = await tx
-            .insert(usersTable)
-            .values({
-              email,
-              name: userName
-            })
-            .onConflictDoUpdate({
-              target: usersTable.email,
-              set: {
-                updatedAt: sql`now()`
-              }
-            })
-            .returning();
-
-          if (!user) {
-            throw new Error('获取用户失败');
-          }
-
-          // 检查用户是否已有角色
-          const existingRoles = await tx
-            .select({ id: userRolesTable.id })
-            .from(userRolesTable)
-            .where(eq(userRolesTable.userId, user.id))
-            .limit(1);
-
-          // 新用户才分配角色
-          if (existingRoles.length === 0) {
-            const [role] = await tx
-              .select({ id: rolesTable.id })
-              .from(rolesTable)
-              .where(eq(rolesTable.code, 'guest'))
-              .limit(1);
-
-            if (!role) {
-              throw new Error(`角色 guest 不存在，请先初始化 RBAC 数据`);
+        db
+          .insert(usersTable)
+          .values({ email, name: userName })
+          .onConflictDoUpdate({
+            target: usersTable.email,
+            set: {
+              updatedAt: sql`now()`
             }
-
-            await tx.insert(userRolesTable).values({
-              userId: user.id,
-              roleId: role.id
-            });
-          }
-
-          return user;
-        })
+          })
+          .returning()
+          .then(users => users[0])
       );
     }
   };

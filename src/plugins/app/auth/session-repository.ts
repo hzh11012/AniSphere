@@ -7,14 +7,8 @@ export interface SessionData {
   userId: number;
   email: string;
   status: boolean;
-  createdAt: number;
-  lastAccessAt: number;
-}
-
-export interface UserPermissionData {
-  roles: string[];
-  permissions: string[];
-  updatedAt: number;
+  role: string;
+  expiresAt: number;
 }
 
 declare module 'fastify' {
@@ -24,7 +18,7 @@ declare module 'fastify' {
 }
 
 const SESSION_PREFIX = 'session:';
-const USER_PERMS_PREFIX = 'user_perms:';
+const USER_SESSIONS_PREFIX = 'user_sessions:';
 
 const createSessionRepository = (fastify: FastifyInstance) => {
   const redis = fastify.redis;
@@ -39,28 +33,24 @@ const createSessionRepository = (fastify: FastifyInstance) => {
     },
 
     /**
-     * 构建 Redis key
+     * 构建 session key
+     * @param token 会话Token
      */
     buildKey(token: string): string {
       return `${SESSION_PREFIX}${token}`;
     },
 
     /**
-     * 构建用户 session 索引 key
+     * 构建用户 sessions key
+     * @param userId 用户ID
      */
     buildUserIndexKey(userId: number): string {
-      return `user_sessions:${userId}`;
-    },
-
-    /**
-     * 构建用户权限索引 key
-     */
-    buildPermsKey(userId: number): string {
-      return `${USER_PERMS_PREFIX}${userId}`;
+      return `${USER_SESSIONS_PREFIX}${userId}`;
     },
 
     /**
      * 验证 token 格式是否有效
+     * @param token 会话Token
      */
     isValidToken(token: string | undefined | null) {
       return (
@@ -77,38 +67,30 @@ const createSessionRepository = (fastify: FastifyInstance) => {
       userId: number,
       email: string,
       status: boolean,
-      roles: string[],
-      permissions: string[]
+      role: string
     ) {
       const token = this.generateToken();
       const now = Date.now();
+      const maxAgeSeconds = Math.floor(config.SESSION_MAX_AGE / 1000);
+      const expiresAt = now + config.SESSION_MAX_AGE;
 
       const sessionData: SessionData = {
         userId,
         email,
         status,
-        createdAt: now,
-        lastAccessAt: now
+        role,
+        expiresAt
       };
 
-      const permsData: UserPermissionData = {
-        roles,
-        permissions,
-        updatedAt: now
-      };
-
-      const maxAgeSeconds = Math.floor(config.SESSION_MAX_AGE / 1000);
       const key = this.buildKey(token);
       const userIndexKey = this.buildUserIndexKey(userId);
-      const permsKey = this.buildPermsKey(userId);
 
       return toResult(
         (async () => {
           const pipeline = redis.pipeline();
           pipeline.setex(key, maxAgeSeconds, JSON.stringify(sessionData));
-          pipeline.sadd(userIndexKey, token);
-          pipeline.expire(userIndexKey, maxAgeSeconds);
-          pipeline.setex(permsKey, maxAgeSeconds, JSON.stringify(permsData));
+          pipeline.zadd(userIndexKey, expiresAt, token);
+          pipeline.zremrangebyscore(userIndexKey, '-inf', now);
           await pipeline.exec();
           return token;
         })()
@@ -117,6 +99,7 @@ const createSessionRepository = (fastify: FastifyInstance) => {
 
     /**
      * 获取 session
+     * @param token 会话Token
      */
     async getSession(token: string) {
       if (!this.isValidToken(token)) {
@@ -134,56 +117,23 @@ const createSessionRepository = (fastify: FastifyInstance) => {
     },
 
     /**
-     * 创建用户权限缓存
-     */
-    async createUserPermissions(
-      userId: number,
-      roles: string[],
-      permissions: string[]
-    ) {
-      const now = Date.now();
-
-      const permsData: UserPermissionData = {
-        roles,
-        permissions,
-        updatedAt: now
-      };
-
-      const maxAgeSeconds = Math.floor(config.SESSION_MAX_AGE / 1000);
-      const key = this.buildPermsKey(userId);
-
-      return toResult(
-        redis.setex(key, maxAgeSeconds, JSON.stringify(permsData))
-      );
-    },
-
-    /**
-     * 获取用户权限缓存
-     */
-    async getUserPermissions(userId: number) {
-      const key = this.buildPermsKey(userId);
-
-      return toResult(
-        redis.get(key).then(data => {
-          if (!data) return null;
-          return JSON.parse(data) as UserPermissionData;
-        })
-      );
-    },
-
-    /**
-     * 更新 session（续签）
+     * 续签 session
+     * @param token 会话Token
+     * @param sessionData 会话数据
      */
     async renewSession(token: string, sessionData: SessionData) {
       if (!this.isValidToken(token)) {
         return err(new Error('Invalid token'));
       }
 
+      const now = Date.now();
       const maxAgeSeconds = Math.floor(config.SESSION_MAX_AGE / 1000);
-      sessionData.lastAccessAt = Date.now();
+      const newExpiresAt = now + config.SESSION_MAX_AGE;
+
+      sessionData.expiresAt = newExpiresAt;
+
       const sessionKey = this.buildKey(token);
       const userIndexKey = this.buildUserIndexKey(sessionData.userId);
-      const permsKey = this.buildPermsKey(sessionData.userId);
 
       return toResult(
         (async () => {
@@ -193,8 +143,8 @@ const createSessionRepository = (fastify: FastifyInstance) => {
             maxAgeSeconds,
             JSON.stringify(sessionData)
           );
-          pipeline.expire(userIndexKey, maxAgeSeconds);
-          pipeline.expire(permsKey, maxAgeSeconds);
+          pipeline.zadd(userIndexKey, newExpiresAt, token);
+          pipeline.zremrangebyscore(userIndexKey, '-inf', now);
           await pipeline.exec();
         })()
       );
@@ -202,15 +152,19 @@ const createSessionRepository = (fastify: FastifyInstance) => {
 
     /**
      * 检查是否需要续签
+     * @param token 会话Token
      */
-    shouldRenew(sessionData: SessionData): boolean {
-      const now = Date.now();
-      const timeSinceLastAccess = now - sessionData.lastAccessAt;
-      return timeSinceLastAccess > config.SESSION_RENEW_THRESHOLD;
+    async shouldRenew(token: string): Promise<boolean> {
+      const ttl = await redis.ttl(this.buildKey(token));
+      if (ttl <= 0) return false;
+
+      const thresholdSeconds = config.SESSION_RENEW_THRESHOLD / 1000;
+      return ttl < thresholdSeconds;
     },
 
     /**
      * 删除 session
+     * @param token 会话Token
      */
     async deleteSession(token: string) {
       if (!this.isValidToken(token)) {
@@ -223,15 +177,13 @@ const createSessionRepository = (fastify: FastifyInstance) => {
       return toResult(
         (async () => {
           const pipeline = redis.pipeline();
-          // 删除 session
           pipeline.del(key);
 
-          // 如果能获取到 session，从用户索引中移除
           if (sessionResult.isOk() && sessionResult.value) {
             const userIndexKey = this.buildUserIndexKey(
               sessionResult.value.userId
             );
-            pipeline.srem(userIndexKey, token);
+            pipeline.zrem(userIndexKey, token);
           }
 
           await pipeline.exec();
@@ -240,48 +192,41 @@ const createSessionRepository = (fastify: FastifyInstance) => {
     },
 
     /**
-     * 删除用户权限缓存
-     */
-    async deleteUserPermissions(userId: number) {
-      const key = this.buildPermsKey(userId);
-      return toResult(redis.del(key).then(() => undefined));
-    },
-
-    /**
      * 删除用户所有 session
+     * @param userId 用户ID
      */
     async deleteAllUserSessions(userId: number) {
       const userIndexKey = this.buildUserIndexKey(userId);
 
       return toResult(
         (async () => {
-          // 获取用户所有的 session token
-          const tokens = await redis.smembers(userIndexKey);
+          const tokens = await redis.zrange(userIndexKey, 0, -1);
 
           if (tokens.length > 0) {
-            // 批量删除所有 session
             const keys = tokens.map(t => this.buildKey(t));
             await redis.del(...keys);
           }
 
-          // 删除用户索引
           await redis.del(userIndexKey);
-          // 删除用户权限缓存
-          await redis.del(this.buildPermsKey(userId));
         })()
       );
     },
 
     /**
      * 批量更新用户所有 session
+     * @param userId 用户ID
+     * @param updater 更新函数
      */
     async batchUpdateUserSessions(
       userId: number,
       updater: (session: SessionData) => void
     ) {
       const userIndexKey = this.buildUserIndexKey(userId);
-      const tokens = await redis.smembers(userIndexKey);
-      if (tokens.length === 0) return;
+      const now = Date.now();
+
+      await redis.zremrangebyscore(userIndexKey, '-inf', now);
+      const tokens = await redis.zrangebyscore(userIndexKey, now, '+inf');
+      if (tokens.length === 0) return 0;
 
       // 批量获取
       const getPipeline = redis.pipeline();
@@ -295,7 +240,7 @@ const createSessionRepository = (fastify: FastifyInstance) => {
 
       // 批量更新
       const updatePipeline = redis.pipeline();
-      const expiredTokens: string[] = [];
+      let updatedCount = 0;
 
       for (let i = 0; i < tokens.length; i++) {
         const token = tokens[i];
@@ -304,31 +249,42 @@ const createSessionRepository = (fastify: FastifyInstance) => {
 
         if (data && ttl > 0) {
           const session = JSON.parse(data) as SessionData;
-          updater(session); // 应用更新逻辑
+          updater(session);
           updatePipeline.setex(
             this.buildKey(token),
             ttl,
             JSON.stringify(session)
           );
-        } else if (!data) {
-          expiredTokens.push(token);
+          updatedCount++;
         }
       }
 
-      if (expiredTokens.length > 0) {
-        updatePipeline.srem(userIndexKey, ...expiredTokens);
-      }
-
       await updatePipeline.exec();
+      return updatedCount;
     },
 
     /**
      * 刷新用户所有 session 的状态
+     * @param userId 用户ID
+     * @param status 状态
      */
     async refreshUserSessionsStatus(userId: number, status: boolean) {
       return toResult(
         this.batchUpdateUserSessions(userId, session => {
           session.status = status;
+        })
+      );
+    },
+
+    /**
+     * 刷新用户所有 session 的角色
+     * @param userId 用户ID
+     * @param role 角色
+     */
+    async refreshUserSessionsRole(userId: number, role: string) {
+      return toResult(
+        this.batchUpdateUserSessions(userId, session => {
+          session.role = role;
         })
       );
     },

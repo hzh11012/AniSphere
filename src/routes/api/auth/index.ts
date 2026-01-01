@@ -12,8 +12,7 @@ export default async function (fastify: FastifyInstance) {
     authenticate,
     verificationService,
     usersRepository,
-    sessionRepository,
-    rbacRepository
+    sessionRepository
   } = fastify;
 
   fastify.post<{ Body: SendCodeBody }>(
@@ -82,38 +81,12 @@ export default async function (fastify: FastifyInstance) {
 
       const user = userResult.value;
 
-      // 获取用户角色和权限
-      const [rolesResult, permissionsResult] = await Promise.all([
-        rbacRepository.getUserRoles(user.id),
-        rbacRepository.getUserPermissions(user.id)
-      ]);
-
-      if (rolesResult.isErr()) {
-        fastify.log.error(
-          { error: rolesResult.error },
-          'Failed to get user roles'
-        );
-        return reply.internalServerError('服务器错误');
-      }
-
-      if (permissionsResult.isErr()) {
-        fastify.log.error(
-          { error: permissionsResult.error },
-          'Failed to get user permissions'
-        );
-        return reply.internalServerError('服务器错误');
-      }
-
-      const roles = rolesResult.value.map(r => r.code);
-      const permissions = permissionsResult.value.map(p => p.code);
-
       // 创建 session
       const sessionResult = await sessionRepository.createSession(
         user.id,
         user.email,
         user.status,
-        roles,
-        permissions
+        user.role
       );
 
       if (sessionResult.isErr()) {
@@ -127,7 +100,7 @@ export default async function (fastify: FastifyInstance) {
       const sessionToken = sessionResult.value;
       const cookieOptions = sessionRepository.getCookieOptions();
       // 设置 cookie
-      reply.setCookie('sessionToken', sessionToken, cookieOptions);
+      reply.setCookie('session', sessionToken, cookieOptions);
 
       return reply.success('登录成功');
     }
@@ -157,7 +130,7 @@ export default async function (fastify: FastifyInstance) {
         }
       }
 
-      reply.clearCookie('sessionToken', { path: '/' });
+      reply.clearCookie('session', { path: '/' });
 
       return reply.success('登出成功');
     }

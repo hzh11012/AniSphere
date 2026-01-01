@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import fp from 'fastify-plugin';
 import { eq, sql } from 'drizzle-orm';
-import { usersTable, rolesTable, userRolesTable } from '../../../db/schema.js';
+import { usersTable } from '../../../db/schema.js';
 
 declare module 'fastify' {
   interface FastifyInstance {
@@ -22,9 +22,8 @@ const createAdminSeeder = (fastify: FastifyInstance) => {
     async isAdminExists(): Promise<boolean> {
       const result = await db
         .select({ count: sql<number>`count(*)::int` })
-        .from(userRolesTable)
-        .innerJoin(rolesTable, eq(userRolesTable.roleId, rolesTable.id))
-        .where(eq(rolesTable.code, 'admin'));
+        .from(usersTable)
+        .where(eq(usersTable.role, 'admin'));
 
       return (result[0]?.count ?? 0) > 0;
     },
@@ -47,37 +46,18 @@ const createAdminSeeder = (fastify: FastifyInstance) => {
           .insert(usersTable)
           .values({
             email: adminEmail,
-            name: '默认管理员'
+            name: '默认管理员',
+            role: 'admin'
           })
           .onConflictDoUpdate({
             target: usersTable.email,
-            set: { updatedAt: sql`now()` }
+            set: { role: 'admin', updatedAt: sql`now()` }
           })
           .returning();
 
         if (!user) {
           throw new Error('创建管理员用户失败');
         }
-
-        // 获取 admin 角色
-        const [adminRole] = await tx
-          .select({ id: rolesTable.id })
-          .from(rolesTable)
-          .where(eq(rolesTable.code, 'admin'))
-          .limit(1);
-
-        if (!adminRole) {
-          throw new Error('admin 角色不存在，请先初始化 RBAC 数据');
-        }
-
-        // 分配管理员角色
-        await tx
-          .insert(userRolesTable)
-          .values({
-            userId: user.id,
-            roleId: adminRole.id
-          })
-          .onConflictDoNothing();
 
         fastify.log.info(
           `✅ 管理员账户创建成功: ${adminEmail} (ID: ${user.id})`
@@ -100,6 +80,6 @@ export default fp(
   },
   {
     name: 'admin-seeder',
-    dependencies: ['db', 'rbac-seeder', '@fastify/env']
+    dependencies: ['db', '@fastify/env']
   }
 );
