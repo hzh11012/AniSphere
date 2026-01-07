@@ -10,3 +10,4 @@ export * from './tags/index.js';
 export * from './topics/index.js';
 export * from './users/index.js';
 export * from './videos/index.js';
+export * from './tasks/index.js';

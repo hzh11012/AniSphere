@@ -18,6 +18,7 @@ declare module 'fastify' {
       // Redis
       REDIS_URL: string;
       // Session
+      SESSION_DOMAIN: string;
       SESSION_SECRET: string;
       SESSION_MAX_AGE: number;
       SESSION_RENEW_THRESHOLD: number;
@@ -28,6 +29,11 @@ declare module 'fastify' {
       SMTP_USER: string;
       SMTP_PASS: string;
       SMTP_FROM: string;
+      // qBittorrent
+      QBIT_HOST: string;
+      QBIT_USERNAME: string;
+      QBIT_PASSWORD: string;
+      QBIT_DOWNLOAD_PATH: string;
     };
   }
 }
@@ -38,94 +44,51 @@ const schema = {
     'DATABASE_URL',
     'ADMIN_EMAIL',
     'REDIS_URL',
+    'SESSION_DOMAIN',
     'SESSION_SECRET',
     'SMTP_HOST',
     'SMTP_USER',
     'SMTP_PASS',
     'SMTP_FROM',
-    'CORS_ORIGINS'
+    'CORS_ORIGINS',
+    'QBIT_HOST',
+    'QBIT_USERNAME',
+    'QBIT_PASSWORD',
+    'QBIT_DOWNLOAD_PATH'
   ],
   properties: {
     // Environment
-    NODE_ENV: {
-      type: 'string',
-      default: 'development'
-    },
-    PORT: {
-      type: 'number',
-      default: 3000
-    },
-
+    NODE_ENV: { type: 'string', default: 'development' },
+    PORT: { type: 'number', default: 3000 },
     // Admin
-    ADMIN_EMAIL: {
-      type: 'string'
-    },
-
+    ADMIN_EMAIL: { type: 'string' },
     // Database
-    DATABASE_URL: {
-      type: 'string'
-    },
-    DB_POOL_MAX: {
-      type: 'number',
-      default: 20
-    },
-    DB_POOL_IDLE_TIMEOUT: {
-      type: 'number',
-      default: 30000
-    },
-    DB_POOL_CONNECTION_TIMEOUT: {
-      type: 'number',
-      default: 2000
-    },
-
+    DATABASE_URL: { type: 'string' },
+    DB_POOL_MAX: { type: 'number', default: 20 },
+    DB_POOL_IDLE_TIMEOUT: { type: 'number', default: 30000 },
+    DB_POOL_CONNECTION_TIMEOUT: { type: 'number', default: 2000 },
     // Redis
-    REDIS_URL: {
-      type: 'string'
-    },
-
+    REDIS_URL: { type: 'string' },
     // Session
-    SESSION_SECRET: {
-      type: 'string'
-    },
-    SESSION_MAX_AGE: {
-      type: 'number',
-      default: 604800000 // 7天
-    },
-    SESSION_RENEW_THRESHOLD: {
-      type: 'number',
-      default: 86400000 // 1天
-    },
-
+    SESSION_DOMAIN: { type: 'string' },
+    SESSION_SECRET: { type: 'string' },
+    SESSION_MAX_AGE: { type: 'number', default: 604800000 },
+    SESSION_RENEW_THRESHOLD: { type: 'number', default: 86400000 },
     // Security
-    RATE_LIMIT_MAX: {
-      type: 'number',
-      default: 100
-    },
-    CORS_ORIGINS: {
-      type: 'string'
-    },
-
+    RATE_LIMIT_MAX: { type: 'number', default: 100 },
+    CORS_ORIGINS: { type: 'string' },
     // SMTP
-    SMTP_HOST: {
-      type: 'string'
-    },
-    SMTP_PORT: {
-      type: 'number',
-      default: 465
-    },
-    SMTP_SECURE: {
-      type: 'boolean',
-      default: true
-    },
-    SMTP_USER: {
-      type: 'string'
-    },
-    SMTP_PASS: {
-      type: 'string'
-    },
-    SMTP_FROM: {
-      type: 'string'
-    }
+    SMTP_HOST: { type: 'string' },
+    SMTP_PORT: { type: 'number', default: 465 },
+    SMTP_SECURE: { type: 'boolean', default: true },
+    SMTP_USER: { type: 'string' },
+    SMTP_PASS: { type: 'string' },
+    SMTP_FROM: { type: 'string' },
+    // qBittorrent
+    QBIT_HOST: { type: 'string' },
+    QBIT_USERNAME: { type: 'string' },
+    QBIT_PASSWORD: { type: 'string' },
+    QBIT_DOWNLOAD_PATH: { type: 'string' }
   }
 };
 

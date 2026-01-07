@@ -5,7 +5,7 @@ import prettier from 'eslint-config-prettier';
 import prettierPlugin from 'eslint-plugin-prettier';
 
 export default [
-  { ignores: ['dist', 'node_modules', '.turbo', 'build'] },
+  { ignores: ['dist', 'node_modules', 'build', '.husky/**'] },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {

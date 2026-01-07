@@ -58,7 +58,7 @@ const createAuthMiddleware = (fastify: FastifyInstance) => {
 
     if (!session.status) {
       reply.clearCookie('session', { path: '/' });
-      return reply.unauthorized('账号已停用');
+      return reply.forbidden('账号已停用');
     }
 
     // 自动续签

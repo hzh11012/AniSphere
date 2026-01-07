@@ -296,6 +296,7 @@ const createSessionRepository = (fastify: FastifyInstance) => {
       return {
         path: '/',
         httpOnly: true,
+        domain: config.SESSION_DOMAIN,
         secure: config.NODE_ENV === 'production',
         sameSite: 'lax' as const,
         signed: true,

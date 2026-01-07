@@ -3,7 +3,8 @@ import {
   SendCodeSchema,
   LoginSchema,
   type SendCodeBody,
-  type LoginBody
+  type LoginBody,
+  UserInfoSchema
 } from '../../../schemas/auth.js';
 import { SuccessResponseSchema } from '../../../schemas/common.js';
 
@@ -14,6 +15,29 @@ export default async function (fastify: FastifyInstance) {
     usersRepository,
     sessionRepository
   } = fastify;
+
+  fastify.get(
+    '/me',
+    {
+      preHandler: [authenticate],
+      schema: {
+        response: {
+          200: SuccessResponseSchema(UserInfoSchema)
+        }
+      }
+    },
+    async (request, reply) => {
+      const userId = request.sessionData!.userId;
+
+      const userResult = await usersRepository.findById(userId);
+      if (userResult.isErr() || !userResult.value) {
+        fastify.log.error('Failed to fetch user information');
+        return reply.internalServerError('服务器错误');
+      }
+
+      return reply.success('获取用户信息成功', userResult.value);
+    }
+  );
 
   fastify.post<{ Body: SendCodeBody }>(
     '/send-code',
@@ -48,7 +72,7 @@ export default async function (fastify: FastifyInstance) {
       schema: {
         body: LoginSchema,
         response: {
-          200: SuccessResponseSchema()
+          200: SuccessResponseSchema(UserInfoSchema)
         }
       }
     },
@@ -66,7 +90,7 @@ export default async function (fastify: FastifyInstance) {
       }
 
       if (!verifyResult.value) {
-        return reply.unauthorized('验证码错误或已过期');
+        return reply.badRequest('验证码错误或已过期');
       }
 
       // 获取用户信息
@@ -102,7 +126,7 @@ export default async function (fastify: FastifyInstance) {
       // 设置 cookie
       reply.setCookie('session', sessionToken, cookieOptions);
 
-      return reply.success('登录成功');
+      return reply.success('登录成功', user);
     }
   );
 
