@@ -28,9 +28,9 @@ export const SuccessResponseSchema = <T extends z.ZodTypeAny>(
 };
 
 /**
- * 分页查询 Schema
+ * 分页 Schema
  */
-export const PaginationQuerySchema = z.object({
-  page: z.number().min(1).default(1).optional(),
-  pageSize: z.number().min(1).max(50).default(10).optional()
-});
+export const PaginationQuerySchema = {
+  page: z.coerce.number().min(1).optional().default(1),
+  pageSize: z.coerce.number().min(1).max(50).optional().default(10)
+};

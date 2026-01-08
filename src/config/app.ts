@@ -53,7 +53,8 @@ const buildApp = async (
   // 加载应用库
   await fastify.register(AutoLoad, {
     dir: join(import.meta.dirname, '../plugins/app'),
-    options: { ...opts }
+    options: { ...opts },
+    ignorePattern: /.*-client\.ts$/
   });
 
   // 加载路由
