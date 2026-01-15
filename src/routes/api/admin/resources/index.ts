@@ -2,7 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import {
   ResourcesListSchema,
   ResourcesListSchemaResponse,
-  type ResourcesListBody
+  type ResourcesListQuery
 } from '../../../../schemas/resources.js';
 import { SuccessResponseSchema } from '../../../../schemas/common.js';
 
@@ -12,19 +12,19 @@ export default async function (fastify: FastifyInstance) {
   const { authenticate, rbac } = fastify;
 
   /** 资源列表 */
-  fastify.post<{ Body: ResourcesListBody }>(
+  fastify.get<{ Querystring: ResourcesListQuery }>(
     '/',
     {
       preHandler: [authenticate, rbac.requireAnyRole('admin')],
       schema: {
-        body: ResourcesListSchema,
+        querystring: ResourcesListSchema,
         response: {
           200: SuccessResponseSchema(ResourcesListSchemaResponse)
         }
       }
     },
     async (request, reply) => {
-      const { page, pageSize, keyword } = request.body;
+      const { page, pageSize, keyword } = request.query;
 
       // 构造请求URL
       const url = new URL(resourceUrl);
@@ -51,7 +51,7 @@ export default async function (fastify: FastifyInstance) {
           title: item.title,
           magnet: item.magnet,
           size: item.size,
-          fansub: item.fansub?.name,
+          fansub: item.fansub?.name || item.publisher?.name,
           createdAt: item.createdAt
         };
       });

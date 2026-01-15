@@ -1,5 +1,5 @@
 {
-  "id": "77b3ebcb-a823-4816-bdf4-d118c52686ed",
+  "id": "61dfc16e-7a02-4b65-9b8c-144e6848324e",
   "prevId": "7df1b72d-25db-4929-af99-c1c7207908f7",
   "version": "7",
   "dialect": "postgresql",
@@ -1604,17 +1604,42 @@
             "cycle": false
           }
         },
-        "torrent_url": {
-          "name": "torrent_url",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
         "torrent_hash": {
           "name": "torrent_hash",
           "type": "varchar(64)",
           "primaryKey": false,
-          "notNull": false
+          "notNull": true
+        },
+        "file_index": {
+          "name": "file_index",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "filename": {
+          "name": "filename",
+          "type": "varchar(500)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "file_path": {
+          "name": "file_path",
+          "type": "varchar(1000)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "file_size": {
+          "name": "file_size",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "needs_transcode": {
+          "name": "needs_transcode",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
         },
         "status": {
           "name": "status",
@@ -1624,31 +1649,6 @@
           "notNull": true,
           "default": "'pending'"
         },
-        "download_path": {
-          "name": "download_path",
-          "type": "varchar(500)",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "file_size": {
-          "name": "file_size",
-          "type": "bigint",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "download_progress": {
-          "name": "download_progress",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
-        "transcode_temp_dir": {
-          "name": "transcode_temp_dir",
-          "type": "varchar(500)",
-          "primaryKey": false,
-          "notNull": false
-        },
         "transcode_progress": {
           "name": "transcode_progress",
           "type": "integer",
@@ -1656,15 +1656,15 @@
           "notNull": true,
           "default": 0
         },
-        "error_message": {
-          "name": "error_message",
-          "type": "text",
+        "transcode_output_path": {
+          "name": "transcode_output_path",
+          "type": "varchar(1000)",
           "primaryKey": false,
           "notNull": false
         },
-        "failed_at_status": {
-          "name": "failed_at_status",
-          "type": "varchar(20)",
+        "error_message": {
+          "name": "error_message",
+          "type": "text",
           "primaryKey": false,
           "notNull": false
         },
@@ -1689,6 +1689,21 @@
           "columns": [
             {
               "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "tasks_torrent_hash_idx": {
+          "name": "tasks_torrent_hash_idx",
+          "columns": [
+            {
+              "expression": "torrent_hash",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -1783,8 +1798,6 @@
       "schema": "public",
       "values": [
         "pending",
-        "downloading",
-        "downloaded",
         "transcoding",
         "transcoded",
         "completed",

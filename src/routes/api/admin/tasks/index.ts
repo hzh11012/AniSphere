@@ -1,107 +1,44 @@
 import type { FastifyInstance } from 'fastify';
-import {
-  DownloadSchema,
-  TaskSchema,
-  type DownloadParams,
-  type TaskBody
-} from '../../../../schemas/task.js';
 import { SuccessResponseSchema } from '../../../../schemas/common.js';
+import {
+  type TaskListQuery,
+  TaskListSchema,
+  TaskListSchemaResponse
+} from '../../../../schemas/webhook.js';
 
 export default async function (fastify: FastifyInstance) {
-  /** 创建任务 */
-  fastify.post<{ Body: TaskBody }>(
+  const { authenticate, rbac, tasksRepository, log } = fastify;
+
+  /** 任务列表 */
+  fastify.get<{ Querystring: TaskListQuery }>(
     '/',
     {
+      preHandler: [authenticate, rbac.requireAnyRole('admin')],
       schema: {
-        body: TaskSchema,
+        querystring: TaskListSchema,
         response: {
-          200: SuccessResponseSchema()
+          200: SuccessResponseSchema(TaskListSchemaResponse)
         }
       }
     },
     async (request, reply) => {
-      const { torrentUrl } = request.body;
+      const { page, pageSize, keyword, status, sort, order } = request.query;
 
-      // 检查重复
-      const existsResult =
-        await fastify.tasksRepository.existsByTorrentUrl(torrentUrl);
-      if (existsResult.isErr()) {
-        fastify.log.error(
-          { error: existsResult.error },
-          'Failed to check for duplicate task'
-        );
-        return reply.internalServerError('服务器错误');
-      }
-      if (existsResult.isOk() && existsResult.value) {
-        return reply.conflict('该种子已存在，请勿重复添加');
-      }
+      const result = await tasksRepository.findAll({
+        page,
+        pageSize,
+        keyword,
+        status,
+        sort,
+        order
+      });
 
-      const taskResult = await fastify.tasksRepository.create(torrentUrl);
-
-      if (taskResult.isErr()) {
-        fastify.log.error({ error: taskResult.error }, 'Failed to create task');
-        return reply.internalServerError('服务器错误');
+      if (result.isErr()) {
+        log.error({ error: result.error }, 'Failed to get tasks');
+        return reply.internalServerError('获取任务列表失败');
       }
 
-      return reply.success('创建任务成功');
-    }
-  );
-
-  /** 开始下载 */
-  fastify.post<{ Params: DownloadParams }>(
-    '/:id/download',
-    {
-      schema: {
-        params: DownloadSchema,
-        response: {
-          200: SuccessResponseSchema()
-        }
-      }
-    },
-    async (request, reply) => {
-      const taskResult = await fastify.tasksRepository.findById(
-        request.params.id
-      );
-      if (taskResult.isErr()) {
-        fastify.log.error({ error: taskResult.error }, 'Failed to find task');
-        return reply.internalServerError('服务器错误');
-      }
-
-      if (!taskResult.value) return reply.notFound('任务不存在');
-
-      const task = taskResult.value;
-      if (task.status !== 'pending') {
-        return reply.badRequest('无法开始下载，请检查任务状态');
-      }
-
-      const addResult = await fastify.qbit.addTorrent(task.torrentUrl);
-      if (addResult.isErr()) {
-        fastify.log.error(
-          { error: addResult.error, taskId: task.id },
-          'Failed to add torrent'
-        );
-        await fastify.tasksRepository.markFailed(
-          task.id,
-          addResult.error.message,
-          'pending'
-        );
-        return reply.badRequest('种子添加失败');
-      }
-
-      const downloadResult = await fastify.tasksRepository.startDownload(
-        task.id,
-        addResult.value
-      );
-
-      if (downloadResult.isErr()) {
-        fastify.log.error(
-          { error: downloadResult.error },
-          'Failed to start download'
-        );
-        return reply.internalServerError('服务器错误');
-      }
-
-      return reply.success('开始下载');
+      return reply.success('获取任务列表成功', result.value);
     }
   );
 }

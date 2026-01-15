@@ -22,4 +22,4 @@ export const ResourcesListSchemaResponse = z.object({
   hasMore: z.boolean()
 });
 
-export type ResourcesListBody = z.infer<typeof ResourcesListSchema>;
+export type ResourcesListQuery = z.infer<typeof ResourcesListSchema>;

@@ -3,7 +3,7 @@ import crypto from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
 import { toResult } from '../../../utils/result.js';
 
-export interface TorrentInfo {
+interface TorrentInfo {
   hash: string;
   name: string;
   progress: number;
@@ -11,7 +11,62 @@ export interface TorrentInfo {
   save_path: string;
   content_path: string;
   size: number;
+  dlspeed: number;
+  eta: number;
+  tags: string;
+  added_on: number;
+  completion_on: number;
 }
+
+interface TorrentFile {
+  index: number;
+  name: string;
+  size: number;
+  progress: number;
+  priority: number;
+  is_seed: boolean;
+  piece_range: number[];
+  availability: number;
+}
+
+type TorrentUriType = 'torrent' | 'magnet';
+
+interface TorrentQueryParams {
+  /** 标签过滤，默认 'anisphere' */
+  tag?: string;
+  /** 状态过滤 */
+  filter?:
+    | 'downloading'
+    | 'metaDL'
+    | 'forcedDL'
+    | 'stalledDL'
+    | 'checkingDL'
+    | 'queuedDL'
+    | 'pausedDL'
+    | 'allocating'
+    | 'uploading'
+    | 'forcedUP'
+    | 'stalledUP'
+    | 'checkingUP'
+    | 'queuedUP'
+    | 'pausedUP'
+    | 'error'
+    | 'missingFiles'
+    | 'moving'
+    | 'checkingResumeData'
+    | 'unknown';
+  /** 排序字段 */
+  sort?: 'size' | 'added_on' | 'completion_on';
+  /** 是否倒序 */
+  reverse?: boolean;
+  /** 每页数量 */
+  limit?: number;
+  /** 偏移量 */
+  offset?: number;
+}
+
+/** 默认标签，用于标识本系统添加的种子 */
+const DEFAULT_TAG = 'anisphere';
 
 export class QBitClient {
   private cookie: string | null = null;
@@ -65,7 +120,6 @@ export class QBitClient {
         throw new Error('qBittorrent login failed: no cookie returned');
       }
 
-      // qBittorrent 通常只返回 SID
       this.cookie = setCookie
         .split(',')
         .map(c => c.split(';')[0])
@@ -112,10 +166,49 @@ export class QBitClient {
       : ((await response.text()) as unknown as T);
   }
 
-  /**
-   * 从 .torrent URL 计算 info hash
-   */
-  private async calculateInfoHash(uri: string) {
+  /** 判断链接类型 */
+  getUriType(uri: string): TorrentUriType {
+    return uri.startsWith('magnet:') ? 'magnet' : 'torrent';
+  }
+
+  /** Base32 转 Hex */
+  private base32ToHex(base32: string): string {
+    const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+    let bits = '';
+
+    for (const char of base32.toUpperCase()) {
+      const val = alphabet.indexOf(char);
+      if (val === -1) throw new Error('Invalid base32 character');
+      bits += val.toString(2).padStart(5, '0');
+    }
+
+    let hex = '';
+    for (let i = 0; i + 4 <= bits.length; i += 4) {
+      hex += parseInt(bits.substring(i, i + 4), 2).toString(16);
+    }
+
+    return hex;
+  }
+
+  /** 从磁力链接提取 info hash */
+  private extractMagnetHash(magnetUri: string): string {
+    const match = magnetUri.match(
+      /xt=urn:btih:([a-fA-F0-9]{40}|[a-zA-Z2-7]{32})/i
+    );
+    if (!match) {
+      throw new Error('无效的磁力链接：无法提取 info hash');
+    }
+
+    let hash = match[1];
+    if (hash.length === 32) {
+      hash = this.base32ToHex(hash);
+    }
+
+    return hash.toLowerCase();
+  }
+
+  /** 从 .torrent URL 计算 info hash */
+  private async calculateTorrentHash(uri: string): Promise<string> {
     const response = await fetch(uri);
     if (!response.ok) {
       throw new Error(`下载种子文件失败: ${response.status}`);
@@ -132,46 +225,15 @@ export class QBitClient {
     return crypto.createHash('sha1').update(infoBuffer).digest('hex');
   }
 
-  /**
-   * 添加下载
-   * @param uri 种子链接
-   * @param taskId 任务ID
-   */
-  async addTorrent(uri: string) {
-    return toResult(
-      (async () => {
-        // 计算hash
-        const hash = await this.calculateInfoHash(uri);
-
-        // 检查种子是否已存在
-        const torrents = await this.fetchWithAuth<TorrentInfo[]>(
-          `/api/v2/torrents/info?hashes=${hash}`
-        );
-        if (torrents.length > 0) {
-          throw new Error('种子已存在于 qBittorrent 中');
-        }
-
-        // 添加种子
-        await this.fetchWithAuth<void>('/api/v2/torrents/add', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-          body: new URLSearchParams({
-            urls: uri,
-            savepath: this.downloadPath,
-            ratioLimit: '0',
-            seedingTimeLimit: '0'
-          }).toString()
-        });
-
-        return hash;
-      })()
-    );
+  /** 获取 info hash（支持两种类型） */
+  async getInfoHash(uri: string): Promise<string> {
+    const type = this.getUriType(uri);
+    return type === 'magnet'
+      ? this.extractMagnetHash(uri)
+      : this.calculateTorrentHash(uri);
   }
 
-  /**
-   * 获取种子信息
-   * @param hash 种子hash
-   */
+  /** 获取种子信息 */
   getTorrentInfo(hash: string) {
     return toResult(
       this.fetchWithAuth<TorrentInfo[]>(
@@ -180,49 +242,93 @@ export class QBitClient {
     );
   }
 
-  /**
-   * 暂停种子
-   * @param hash 种子 hash
-   */
-  async pauseTorrent(hash: string) {
+  /** 获取种子文件列表 */
+  getTorrentFiles(hash: string) {
     return toResult(
-      this.fetchWithAuth<void>('/api/v2/torrents/pause', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams({ hashes: hash.toLowerCase() }).toString()
-      })
+      this.fetchWithAuth<TorrentFile[]>(`/api/v2/torrents/files?hash=${hash}`)
     );
   }
 
   /**
-   * 恢复种子
-   * @param hash 种子 hash
+   * 设置文件优先级
+   * @param priority 0=不下载, 1=正常, 6=高, 7=最高
    */
-  resumeTorrent(hash: string) {
+  setFilePriority(hash: string, fileIndexes: number[], priority: number) {
     return toResult(
-      this.fetchWithAuth<void>('/api/v2/torrents/resume', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams({ hashes: hash.toLowerCase() }).toString()
-      })
-    );
-  }
-
-  /**
-   * 删除种子
-   * @param hash 种子 hash
-   * @param deleteFiles 是否删除文件
-   */
-  deleteTorrent(hash: string, deleteFiles = false) {
-    return toResult(
-      this.fetchWithAuth<void>('/api/v2/torrents/delete', {
+      this.fetchWithAuth<void>('/api/v2/torrents/filePrio', {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: new URLSearchParams({
-          hashes: hash.toLowerCase(),
-          deleteFiles: String(deleteFiles)
+          hash: hash.toLowerCase(),
+          id: fileIndexes.join('|'),
+          priority: String(priority)
         }).toString()
       })
+    );
+  }
+
+  /**
+   * 添加下载（带标签）
+   * @param uri 种子链接
+   * @param tag 标签，默认 'anisphere'
+   */
+  addTorrent(uri: string, tag = DEFAULT_TAG) {
+    return toResult(
+      this.fetchWithAuth<string>('/api/v2/torrents/add', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          urls: uri,
+          savepath: this.downloadPath,
+          tags: tag,
+          ratioLimit: '0',
+          seedingTimeLimit: '0'
+        }).toString()
+      })
+    );
+  }
+
+  /**
+   * 获取种子列表（支持分页）
+   */
+  getTorrents(params: TorrentQueryParams = {}) {
+    const {
+      tag = DEFAULT_TAG,
+      filter,
+      sort = 'added_on',
+      reverse = true,
+      limit = 10,
+      offset = 0
+    } = params;
+
+    return toResult(
+      (async () => {
+        const queryParams = new URLSearchParams();
+        if (tag) queryParams.set('tag', tag);
+        if (filter) queryParams.set('filter', filter);
+        if (sort) queryParams.set('sort', sort);
+        if (reverse) queryParams.set('reverse', 'true');
+        queryParams.set('limit', String(limit));
+        queryParams.set('offset', String(offset));
+
+        const items = await this.fetchWithAuth<TorrentInfo[]>(
+          `/api/v2/torrents/info?${queryParams.toString()}`
+        );
+
+        const countParams = new URLSearchParams();
+        if (tag) countParams.set('tag', tag);
+        if (filter) countParams.set('filter', filter);
+
+        const allForCount = await this.fetchWithAuth<TorrentInfo[]>(
+          `/api/v2/torrents/info?${countParams.toString()}`
+        );
+        const total = allForCount.length;
+
+        return {
+          items,
+          total
+        };
+      })()
     );
   }
 

@@ -1,5 +1,6 @@
 import {
   bigint,
+  boolean,
   index,
   integer,
   pgTable,
@@ -7,40 +8,45 @@ import {
   varchar
 } from 'drizzle-orm/pg-core';
 import { timestamps } from '../columns.helpers.js';
-import { tasksStatusEnum } from './enum.js';
+import { taskStatusEnum } from './enum.js';
 
 /** 任务表 */
 export const tasksTable = pgTable(
   'tasks',
   {
     id: integer().primaryKey().generatedAlwaysAsIdentity(),
-    /** 种子URL */
-    torrentUrl: text('torrent_url').notNull(),
-    /** 种子 Hash */
-    torrentHash: varchar('torrent_hash', { length: 64 }),
-    /** 任务状态 */
-    status: tasksStatusEnum().notNull().default('pending'),
 
-    // ===== 下载阶段 =====
-    /** 原始下载路径（qBittorrent 下载位置） */
-    downloadPath: varchar('download_path', { length: 500 }),
+    // === qBit 信息 ===
+    /** 种子hash */
+    torrentHash: varchar('torrent_hash', { length: 64 }).notNull(),
+    /** 文件在种子中的索引 */
+    fileIndex: integer('file_index').notNull(),
+
+    // === 文件信息 ===
+    /** 文件名 */
+    filename: varchar('filename', { length: 500 }).notNull(),
+    /** 下载后的完整路径 */
+    filePath: varchar('file_path', { length: 1000 }).notNull(),
     /** 文件大小 (字节) */
-    fileSize: bigint('file_size', { mode: 'number' }),
-    /** 下载进度 (0-100) */
-    downloadProgress: integer('download_progress').notNull().default(0),
+    fileSize: bigint('file_size', { mode: 'number' }).notNull(),
 
-    // ===== HLS 转码阶段 =====
-    /** 转码临时输出目录 */
-    transcodeTempDir: varchar('transcode_temp_dir', { length: 500 }),
+    // === 状态信息 ===
+    /** 是否需要转码（非 MP4 为 true） */
+    needsTranscode: boolean('needs_transcode').notNull().default(false),
+    /** 任务状态 */
+    status: taskStatusEnum().notNull().default('pending'),
     /** 转码进度 (0-100) */
     transcodeProgress: integer('transcode_progress').notNull().default(0),
+    /** 转码输出路径 */
+    transcodeOutputPath: varchar('transcode_output_path', { length: 1000 }),
 
-    // ===== 错误处理 =====
+    // === 错误信息 ===
     /** 错误信息 */
     errorMessage: text('error_message'),
-    /** 失败时的状态 */
-    failedAtStatus: varchar('failed_at_status', { length: 20 }),
     ...timestamps
   },
-  table => [index('tasks_status_idx').on(table.status)]
+  table => [
+    index('tasks_status_idx').on(table.status),
+    index('tasks_torrent_hash_idx').on(table.torrentHash)
+  ]
 );
