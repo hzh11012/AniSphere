@@ -5,7 +5,8 @@ import path from 'node:path';
 import fs from 'node:fs/promises';
 import { EventEmitter } from 'node:events';
 import type { Result } from 'neverthrow';
-import { err, toResult } from '../../../utils/result.js';
+import { err, ok, toResult } from '../../../utils/result.js';
+import { VIDEO_EXTENSIONS } from '../../../utils/video.js';
 
 declare module 'fastify' {
   interface FastifyInstance {
@@ -39,130 +40,185 @@ interface TranscodeResult {
 }
 
 interface VideoInfo {
-  videoCodec: string;
-  audioCodec: string;
   duration: number;
   width: number;
   height: number;
   isH264: boolean;
   isAAC: boolean;
-  canCopyVideo: boolean;
-  canCopyAudio: boolean;
 }
+
+interface HardwareEncoder {
+  name: string;
+  encoder: string;
+  hwaccel?: string;
+  hwaccelOutputFormat?: string;
+  scaleFilter: string;
+  extraArgs: string[];
+}
+
+interface ActiveTask {
+  process: ChildProcess;
+  outputDir: string;
+}
+
+/** 最大输出高度（仅对非 H.264 视频生效） */
+const MAX_HEIGHT = 1080;
+
+/** 编码器配置 */
+const ENCODERS: Record<string, HardwareEncoder> = {
+  qsv: {
+    name: 'Intel QSV',
+    encoder: 'h264_qsv',
+    hwaccel: 'qsv',
+    hwaccelOutputFormat: 'qsv',
+    scaleFilter: 'scale_qsv',
+    extraArgs: ['-preset', 'medium', '-global_quality', '23']
+  },
+  nvenc: {
+    name: 'NVIDIA NVENC',
+    encoder: 'h264_nvenc',
+    hwaccel: 'cuda',
+    hwaccelOutputFormat: 'cuda',
+    scaleFilter: 'scale_cuda',
+    extraArgs: ['-preset', 'p4', '-cq', '23']
+  },
+  videotoolbox: {
+    name: 'Apple VideoToolbox',
+    encoder: 'h264_videotoolbox',
+    scaleFilter: 'scale',
+    extraArgs: ['-q:v', '65']
+  },
+  software: {
+    name: 'Software (libx264)',
+    encoder: 'libx264',
+    scaleFilter: 'scale',
+    extraArgs: [
+      '-preset',
+      'medium',
+      '-crf',
+      '23',
+      '-profile:v',
+      'high',
+      '-level',
+      '4.1'
+    ]
+  }
+};
+
+/** 编码器检测优先级 */
+const ENCODER_PRIORITY = ['qsv', 'nvenc', 'videotoolbox', 'software'];
 
 const createFFmpegService = (fastify: FastifyInstance) => {
   const { config, log, tasksRepository } = fastify;
-  const activeProcesses = new Map<number, ChildProcess>();
+  const activeProcesses = new Map<number, ActiveTask>();
   const eventEmitter = new EventEmitter();
+
+  // 任务队列（内存）
+  const taskQueue: TranscodeOptions[] = [];
+  let isProcessing = false;
+
+  // 检测到的编码器
+  let detectedEncoder: HardwareEncoder = ENCODERS.software;
+
+  //初始化方法
+  const initialize = async () => {
+    detectedEncoder = await detectEncoder();
+    log.info({ encoder: detectedEncoder.name }, '[FFmpeg] encoder initialized');
+  };
+
+  /**
+   * 检测可用的硬件编码器
+   */
+  const detectEncoder = async (): Promise<HardwareEncoder> => {
+    return new Promise(resolve => {
+      const ffmpeg = spawn(config.FFMPEG_PATH, ['-encoders']);
+      let stdout = '';
+
+      ffmpeg.stdout.on('data', data => {
+        stdout += data.toString();
+      });
+
+      ffmpeg.on('close', () => {
+        for (const key of ENCODER_PRIORITY) {
+          const encoder = ENCODERS[key];
+          if (stdout.includes(encoder.encoder)) {
+            resolve(encoder);
+            return;
+          }
+        }
+        resolve(ENCODERS.software);
+      });
+
+      ffmpeg.on('error', () => resolve(ENCODERS.software));
+    });
+  };
+
+  /**
+   * 检查文件格式是否支持
+   */
+  const isSupportedFormat = (filePath: string): boolean => {
+    const ext = path.extname(filePath).toLowerCase();
+    return VIDEO_EXTENSIONS.includes(ext);
+  };
 
   /**
    * 使用 ffprobe 获取视频信息（编码 + 时长）
    */
   const getVideoInfo = async (inputPath: string): Promise<VideoInfo> => {
     return new Promise((resolve, reject) => {
-      const args = [
+      const ffprobe = spawn('ffprobe', [
         '-v',
         'quiet',
         '-print_format',
         'json',
         '-show_format',
         '-show_streams',
-        '-select_streams',
-        'v:0,a:0',
         inputPath
-      ];
-
-      const ffprobe = spawn('ffprobe', args);
+      ]);
       let stdout = '';
-      let stderr = '';
 
       ffprobe.stdout.on('data', data => {
         stdout += data.toString();
       });
 
-      ffprobe.stderr.on('data', data => {
-        stderr += data.toString();
-      });
-
       ffprobe.on('close', code => {
         if (code !== 0) {
-          log.warn({ inputPath, stderr }, '[FFmpeg] ffprobe failed');
           resolve({
-            videoCodec: 'unknown',
-            audioCodec: 'unknown',
             duration: 0,
             width: 0,
             height: 0,
             isH264: false,
-            isAAC: false,
-            canCopyVideo: false,
-            canCopyAudio: false
+            isAAC: false
           });
           return;
         }
 
         try {
           const info = JSON.parse(stdout);
-          const streams = info.streams || [];
-          const format = info.format || {};
-          const videoStream = streams.find(
-            (s: any) => s.codec_type === 'video'
+          const videoStream = info.streams?.find(
+            (s: { codec_type: string }) => s.codec_type === 'video'
           );
-          const audioStream = streams.find(
-            (s: any) => s.codec_type === 'audio'
+          const audioStream = info.streams?.find(
+            (s: { codec_type: string }) => s.codec_type === 'audio'
           );
+
           const videoCodec = videoStream?.codec_name || 'unknown';
           const audioCodec = audioStream?.codec_name || 'unknown';
-          const duration =
-            parseFloat(format.duration) ||
-            parseFloat(videoStream?.duration) ||
-            0;
-          const width = videoStream?.width || 0;
-          const height = videoStream?.height || 0;
-          const isH264 = ['h264', 'avc1', 'avc'].includes(
-            videoCodec.toLowerCase()
-          );
-          const isAAC = ['aac', 'mp4a'].includes(audioCodec.toLowerCase());
-          const canCopyVideo = isH264;
-          const canCopyAudio = isAAC;
-
-          log.info(
-            {
-              inputPath,
-              videoCodec,
-              audioCodec,
-              duration,
-              width,
-              height,
-              canCopyVideo,
-              canCopyAudio
-            },
-            '[FFmpeg] video info detected'
-          );
 
           resolve({
-            videoCodec,
-            audioCodec,
-            duration,
-            width,
-            height,
-            isH264,
-            isAAC,
-            canCopyVideo,
-            canCopyAudio
+            duration: parseFloat(info.format?.duration) || 0,
+            width: videoStream?.width || 0,
+            height: videoStream?.height || 0,
+            isH264: ['h264', 'avc1', 'avc'].includes(videoCodec.toLowerCase()),
+            isAAC: ['aac', 'mp4a'].includes(audioCodec.toLowerCase())
           });
-        } catch (error) {
-          log.error({ error, stdout }, 'Failed to parse ffprobe output');
+        } catch {
           resolve({
-            videoCodec: 'unknown',
-            audioCodec: 'unknown',
             duration: 0,
             width: 0,
             height: 0,
             isH264: false,
-            isAAC: false,
-            canCopyVideo: false,
-            canCopyAudio: false
+            isAAC: false
           });
         }
       });
@@ -174,42 +230,51 @@ const createFFmpegService = (fastify: FastifyInstance) => {
   /**
    * 构建 FFmpeg 参数
    * - H.264：直接复制
-   * - 非 H.264：重编码为 H.264，保持原分辨率
+   * - 非 H.264：硬件编码，限制最大 1080p
    */
   const buildFFmpegArgs = (
     inputPath: string,
     playlistPath: string,
     segmentPattern: string,
-    videoInfo: VideoInfo
+    videoInfo: VideoInfo,
+    encoder: HardwareEncoder
   ): string[] => {
-    const args: string[] = ['-i', inputPath, '-y'];
+    const args: string[] = [];
+    const needsScale = !videoInfo.isH264 && videoInfo.height > MAX_HEIGHT;
 
-    // 视频编码
-    if (videoInfo.canCopyVideo) {
-      args.push('-c:v', 'copy');
+    // H.264：直接复制
+    if (videoInfo.isH264) {
+      args.push('-i', inputPath, '-y', '-c:v', 'copy');
     } else {
-      args.push(
-        '-c:v',
-        'libx264',
-        '-preset',
-        'medium',
-        '-crf',
-        '23',
-        '-profile:v',
-        'high',
-        '-level',
-        '4.1'
-      );
+      // 非 H.264：硬件编码
+      if (encoder.hwaccel) {
+        args.push('-hwaccel', encoder.hwaccel);
+        if (encoder.hwaccelOutputFormat) {
+          args.push('-hwaccel_output_format', encoder.hwaccelOutputFormat);
+        }
+      }
+
+      args.push('-i', inputPath, '-y', '-c:v', encoder.encoder);
+      args.push(...encoder.extraArgs);
+
+      // 缩放（仅非 H.264 且 > 1080p）
+      if (needsScale) {
+        const scale =
+          encoder.scaleFilter === 'scale'
+            ? `-2:${MAX_HEIGHT}`
+            : `w=-1:h=${MAX_HEIGHT}`;
+        args.push('-vf', `${encoder.scaleFilter}=${scale}`);
+      }
     }
 
-    // 音频编码
-    if (videoInfo.canCopyAudio) {
+    // 音频
+    if (videoInfo.isAAC) {
       args.push('-c:a', 'copy');
     } else {
-      args.push('-c:a', 'aac', '-b:a', '128k', '-ac', '2');
+      args.push('-c:a', 'aac', '-b:a', '128k');
     }
 
-    // 线程数 + HLS 参数
+    // HLS 参数
     args.push(
       '-threads',
       String(config.FFMPEG_THREADS),
@@ -234,25 +299,22 @@ const createFFmpegService = (fastify: FastifyInstance) => {
   };
 
   /**
-   * 解析 FFmpeg progress 输出
+   * 解析进度
    */
-  const parseProgressOutput = (
+  const parseProgress = (
     output: string,
     duration: number
   ): Partial<TranscodeProgress> => {
     const result: Partial<TranscodeProgress> = { duration };
 
-    const outTimeMatch = output.match(/out_time_us=(\d+)/);
-
-    if (outTimeMatch) {
-      const currentTime = parseInt(outTimeMatch[1], 10) / 1000000;
+    const timeMatch = output.match(/out_time_us=(\d+)/);
+    if (timeMatch) {
+      const currentTime = parseInt(timeMatch[1], 10) / 1000000;
       result.currentTime = currentTime;
-      if (duration > 0) {
-        result.progress = Math.min(
-          Math.round((currentTime / duration) * 100),
-          99
-        );
-      }
+      result.progress =
+        duration > 0
+          ? Math.min(Math.round((currentTime / duration) * 100), 99)
+          : 0;
     }
 
     const frameMatch = output.match(/frame=(\d+)/);
@@ -268,141 +330,31 @@ const createFFmpegService = (fastify: FastifyInstance) => {
   };
 
   /**
-   * 执行 FFmpeg 转码
+   * 执行单个转码
    */
-  const executeFFmpeg = (
-    taskId: number,
-    inputPath: string,
-    playlistPath: string,
-    segmentPattern: string,
-    videoInfo: VideoInfo
-  ): Promise<TranscodeResult> => {
-    const args = buildFFmpegArgs(
-      inputPath,
-      playlistPath,
-      segmentPattern,
-      videoInfo
-    );
-    const usedCopy = videoInfo.canCopyVideo && videoInfo.canCopyAudio;
-    const taskOutputDir = path.dirname(playlistPath);
-
-    log.info({ taskId, args, usedCopy }, '[FFmpeg] starting transcode');
-
-    return new Promise((resolve, reject) => {
-      const ffmpeg = spawn(config.FFMPEG_PATH, args);
-      activeProcesses.set(taskId, ffmpeg);
-
-      let progressBuffer = '';
-      let stderrBuffer = '';
-
-      // 处理进度输出
-      ffmpeg.stdout.on('data', async data => {
-        progressBuffer += data.toString();
-        const lines = progressBuffer.split('\n');
-        progressBuffer = lines.pop() || '';
-
-        for (const line of lines) {
-          if (line.includes('out_time_us') || line.includes('progress=')) {
-            const progress = parseProgressOutput(
-              progressBuffer + line,
-              videoInfo.duration
-            );
-
-            if (progress.progress !== undefined) {
-              await tasksRepository.updateTranscodeProgress(
-                taskId,
-                progress.progress
-              );
-              eventEmitter.emit('progress', {
-                taskId,
-                progress: progress.progress,
-                frame: progress.frame || 0,
-                fps: progress.fps || 0,
-                speed: progress.speed || '0x',
-                currentTime: progress.currentTime || 0,
-                duration: videoInfo.duration
-              } as TranscodeProgress);
-            }
-          }
-        }
-      });
-
-      // 处理错误输出
-      ffmpeg.stderr.on('data', data => {
-        stderrBuffer += data.toString();
-      });
-
-      // 进程结束
-      ffmpeg.on('close', async code => {
-        activeProcesses.delete(taskId);
-
-        if (code === 0) {
-          log.info(
-            { taskId, playlistPath, usedCopy },
-            '[FFmpeg] transcode completed'
-          );
-          await tasksRepository.markTranscoded(taskId, playlistPath);
-
-          resolve({
-            success: true,
-            outputPath: taskOutputDir,
-            playlistPath,
-            usedCopy,
-            duration: videoInfo.duration
-          });
-        } else {
-          const errorMsg = `[FFmpeg] exited with code ${code}`;
-          log.error(
-            { taskId, code, stderr: stderrBuffer.slice(-1000) },
-            errorMsg
-          );
-          await tasksRepository.markFailed(taskId, errorMsg);
-
-          resolve({
-            success: false,
-            outputPath: taskOutputDir,
-            playlistPath,
-            usedCopy,
-            duration: videoInfo.duration,
-            error: errorMsg
-          });
-        }
-      });
-
-      // 进程错误
-      ffmpeg.on('error', async error => {
-        activeProcesses.delete(taskId);
-        log.error({ taskId, error }, '[FFmpeg] process error');
-        await tasksRepository.markFailed(taskId, error.message);
-        reject(error);
-      });
-    });
-  };
-
-  /**
-   * 执行转码任务
-   */
-  const transcode = async (
+  const executeTranscode = async (
     options: TranscodeOptions
   ): Promise<Result<TranscodeResult, Error>> => {
     const { taskId, inputPath, outputDir } = options;
 
-    // 创建输出目录
+    // 检查文件格式
+    if (!isSupportedFormat(inputPath)) {
+      const errorMsg = `不支持的文件格式，仅支持: ${VIDEO_EXTENSIONS.join(', ')}`;
+      await tasksRepository.markFailed(taskId, errorMsg);
+      return err(new Error(errorMsg));
+    }
+
     const taskOutputDir = path.join(outputDir, `task_${taskId}`);
 
     try {
       await fs.mkdir(taskOutputDir, { recursive: true });
     } catch (e) {
       const error = e instanceof Error ? e : new Error(String(e));
-      log.error(
-        { taskId, error },
-        '[FFmpeg] Failed to create output directory'
-      );
       await tasksRepository.markFailed(
         taskId,
-        `创建输出目录失败: ${error.message}`
+        `创建目录失败: ${error.message}`
       );
-      return err(e instanceof Error ? e : new Error(String(e)));
+      return err(error);
     }
 
     const playlistPath = path.join(taskOutputDir, 'index.m3u8');
@@ -411,14 +363,7 @@ const createFFmpegService = (fastify: FastifyInstance) => {
     // 获取视频信息
     const videoInfoResult = await toResult(getVideoInfo(inputPath));
     if (videoInfoResult.isErr()) {
-      log.error(
-        { taskId, error: videoInfoResult.error },
-        '[FFmpeg] Failed to get video info'
-      );
-      await tasksRepository.markFailed(
-        taskId,
-        `获取视频信息失败: ${videoInfoResult.error.message}`
-      );
+      await tasksRepository.markFailed(taskId, `获取视频信息失败`);
       return err(videoInfoResult.error);
     }
     const videoInfo = videoInfoResult.value;
@@ -426,87 +371,232 @@ const createFFmpegService = (fastify: FastifyInstance) => {
     log.info(
       {
         taskId,
-        duration: videoInfo.duration,
+        resolution: `${videoInfo.width}x${videoInfo.height}`,
         isH264: videoInfo.isH264,
-        resolution: `${videoInfo.width}x${videoInfo.height}`
+        encoder: videoInfo.isH264 ? 'copy' : detectedEncoder.name
       },
-      '[FFmpeg] video info retrieved'
+      '[FFmpeg] starting transcode'
     );
 
-    // 更新任务状态为转码中
-    const markResult = await tasksRepository.markTranscoding(taskId);
-    if (markResult.isErr()) {
-      log.error(
-        { taskId, error: markResult.error },
-        '[FFmpeg] Failed to mark task as transcoding'
-      );
-      return err(markResult.error);
-    }
+    await tasksRepository.markTranscoding(taskId);
 
-    // 执行 FFmpeg 转码
-    return toResult(
-      executeFFmpeg(taskId, inputPath, playlistPath, segmentPattern, videoInfo)
+    const args = buildFFmpegArgs(
+      inputPath,
+      playlistPath,
+      segmentPattern,
+      videoInfo,
+      detectedEncoder
     );
+    const usedCopy = videoInfo.isH264 && videoInfo.isAAC;
+
+    return new Promise((resolve, reject) => {
+      const ffmpeg = spawn(config.FFMPEG_PATH, args);
+      activeProcesses.set(taskId, {
+        process: ffmpeg,
+        outputDir: taskOutputDir
+      });
+
+      let progressBuffer = '';
+      let stderrBuffer = '';
+
+      ffmpeg.stdout.on('data', async data => {
+        progressBuffer += data.toString();
+        const lines = progressBuffer.split('\n');
+        progressBuffer = lines.pop() || '';
+
+        for (const line of lines) {
+          if (line.includes('out_time_us')) {
+            const progress = parseProgress(
+              progressBuffer + line,
+              videoInfo.duration
+            );
+            if (progress.progress !== undefined) {
+              await tasksRepository.updateTranscodeProgress(
+                taskId,
+                progress.progress
+              );
+              eventEmitter.emit('progress', {
+                taskId,
+                ...progress
+              } as TranscodeProgress);
+            }
+          }
+        }
+      });
+
+      ffmpeg.stderr.on('data', data => {
+        stderrBuffer += data.toString();
+      });
+
+      ffmpeg.on('close', async code => {
+        activeProcesses.delete(taskId);
+
+        if (code === 0) {
+          await tasksRepository.markTranscoded(taskId, playlistPath);
+          resolve(
+            ok({
+              success: true,
+              outputPath: taskOutputDir,
+              playlistPath,
+              usedCopy,
+              duration: videoInfo.duration
+            })
+          );
+        } else {
+          const errorMsg = `[FFmpeg] exited with code ${code}`;
+          log.error({ taskId, stderr: stderrBuffer.slice(-500) }, errorMsg);
+          await tasksRepository.markFailed(taskId, errorMsg);
+          resolve(
+            ok({
+              success: false,
+              outputPath: taskOutputDir,
+              playlistPath,
+              usedCopy,
+              duration: videoInfo.duration,
+              error: errorMsg
+            })
+          );
+        }
+      });
+
+      ffmpeg.on('error', async error => {
+        activeProcesses.delete(taskId);
+        await tasksRepository.markFailed(taskId, error.message);
+        reject(error);
+      });
+    });
   };
 
   /**
-   * 取消转码任务
+   * 处理队列
+   */
+  const processQueue = async () => {
+    if (isProcessing || taskQueue.length === 0) return;
+
+    isProcessing = true;
+    const task = taskQueue.shift()!;
+
+    log.info(
+      { taskId: task.taskId, remaining: taskQueue.length },
+      '[FFmpeg] processing from queue'
+    );
+
+    try {
+      await executeTranscode(task);
+    } catch (error) {
+      log.error({ taskId: task.taskId, error }, '[FFmpeg] task failed');
+    } finally {
+      isProcessing = false;
+      if (taskQueue.length > 0) {
+        setImmediate(processQueue);
+      }
+    }
+  };
+
+  /**
+   * 添加任务到队列
+   */
+  const transcode = async (
+    options: TranscodeOptions
+  ): Promise<Result<{ queued: boolean; position: number }, Error>> => {
+    const { taskId, inputPath } = options;
+
+    // 检查文件格式
+    if (!isSupportedFormat(inputPath)) {
+      return err(
+        new Error(`不支持的文件格式，仅支持: ${VIDEO_EXTENSIONS.join(', ')}`)
+      );
+    }
+
+    // 检查是否已在队列或处理中
+    if (
+      taskQueue.some(t => t.taskId === taskId) ||
+      activeProcesses.has(taskId)
+    ) {
+      return err(new Error('任务已在队列中或正在处理'));
+    }
+
+    taskQueue.push(options);
+    const position = taskQueue.length;
+
+    log.info({ taskId, position }, '[FFmpeg] task queued');
+
+    // 触发处理
+    setImmediate(processQueue);
+
+    return ok({ queued: true, position });
+  };
+
+  /**
+   * 取消任务
    */
   const cancelTranscode = async (
     taskId: number
   ): Promise<Result<boolean, Error>> => {
-    const process = activeProcesses.get(taskId);
-    if (!process) {
-      return err(new Error('Task not found or not running'));
+    // 从队列移除
+    const queueIndex = taskQueue.findIndex(t => t.taskId === taskId);
+    if (queueIndex !== -1) {
+      taskQueue.splice(queueIndex, 1);
+      await tasksRepository.markFailed(taskId, '用户取消');
+      return ok(true);
     }
 
-    process.kill('SIGTERM');
-    activeProcesses.delete(taskId);
+    // 终止进程
+    const activeTask = activeProcesses.get(taskId);
+    if (activeTask) {
+      const { process, outputDir } = activeTask;
 
-    const result = await tasksRepository.markFailed(taskId, '用户取消转码');
-    if (result.isErr()) {
-      return err(result.error);
+      // 终止进程
+      process.kill('SIGTERM');
+      activeProcesses.delete(taskId);
+
+      // 等待进程完全退出后清理文件
+      await new Promise<void>(resolve => {
+        process.once('close', () => resolve());
+        // 设置超时，防止进程无法正常退出
+        setTimeout(() => resolve(), 200);
+      });
+
+      // 清理输出文件
+      try {
+        await fs.rm(outputDir, { recursive: true, force: true });
+      } catch (error) {
+        log.warn(
+          { taskId, outputDir, error },
+          '[FFmpeg] failed to cleanup cancelled task output'
+        );
+      }
+
+      await tasksRepository.markFailed(taskId, '用户取消');
+      return ok(true);
     }
 
-    log.info({ taskId }, 'Transcode cancelled');
-    return toResult(Promise.resolve(true));
+    return err(new Error('任务不存在'));
   };
-
-  /**
-   * 获取转码状态
-   */
-  const getTranscodeStatus = (taskId: number) => {
-    return {
-      isRunning: activeProcesses.has(taskId)
-    };
-  };
-
-  /**
-   * 订阅进度事件
-   */
-  const onProgress = (callback: (progress: TranscodeProgress) => void) => {
-    eventEmitter.on('progress', callback);
-    return () => eventEmitter.off('progress', callback);
-  };
-
-  /**
-   * 获取活跃任务数
-   */
-  const getActiveCount = () => activeProcesses.size;
 
   return {
+    initialize,
     transcode,
     cancelTranscode,
-    getTranscodeStatus,
-    onProgress,
-    getActiveCount,
-    getVideoInfo: (inputPath: string) => toResult(getVideoInfo(inputPath))
+    getTranscodeStatus: (taskId: number) => ({
+      isRunning: activeProcesses.has(taskId)
+    }),
+    onProgress: (cb: (p: TranscodeProgress) => void) => {
+      eventEmitter.on('progress', cb);
+      return () => eventEmitter.off('progress', cb);
+    },
+    getActiveCount: () => activeProcesses.size,
+    getQueueLength: () => taskQueue.length,
+    getEncoderInfo: () => detectedEncoder,
+    getVideoInfo: (p: string) => toResult(getVideoInfo(p)),
+    isSupportedFormat
   };
 };
 
 export default fp(
   async (fastify: FastifyInstance) => {
     const service = createFFmpegService(fastify);
+    await service.initialize();
     fastify.decorate('ffmpegService', service);
   },
   {

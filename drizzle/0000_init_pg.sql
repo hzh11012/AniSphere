@@ -142,7 +142,6 @@ CREATE TABLE "videos" (
 	"title" varchar(100) NOT NULL,
 	"episode" real NOT NULL,
 	"url" varchar(255) NOT NULL,
-	"cover" varchar(255) NOT NULL,
 	"views" integer DEFAULT 0 NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL

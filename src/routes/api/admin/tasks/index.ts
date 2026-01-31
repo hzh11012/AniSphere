@@ -3,7 +3,9 @@ import { SuccessResponseSchema } from '../../../../schemas/common.js';
 import {
   type TaskListQuery,
   TaskListSchema,
-  TaskListSchemaResponse
+  TaskListSchemaResponse,
+  DeleteTaskBody,
+  DeleteTaskSchema
 } from '../../../../schemas/webhook.js';
 
 export default async function (fastify: FastifyInstance) {
@@ -39,6 +41,37 @@ export default async function (fastify: FastifyInstance) {
       }
 
       return reply.success('获取任务列表成功', result.value);
+    }
+  );
+
+  /** 删除任务记录 */
+  fastify.delete<{ Params: DeleteTaskBody }>(
+    '/:id',
+    {
+      preHandler: [authenticate, rbac.requireAnyRole('admin')],
+      schema: {
+        params: DeleteTaskSchema,
+        response: {
+          200: SuccessResponseSchema()
+        }
+      }
+    },
+    async (request, reply) => {
+      const { id } = request.params;
+
+      const task = await tasksRepository.findById(id);
+      if (task.isErr() || !task.value) {
+        return reply.notFound('任务记录不存在');
+      }
+
+      const result = await tasksRepository.deleteById(id);
+
+      if (result.isErr()) {
+        log.error({ error: result.error }, 'Failed to delete task');
+        return reply.internalServerError('删除任务记录失败');
+      }
+
+      return reply.success('删除任务记录成功');
     }
   );
 }

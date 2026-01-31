@@ -186,6 +186,23 @@ const createTasksRepository = (fastify: FastifyInstance) => {
           .returning()
           .then(files => files[0])
       );
+    },
+
+    /** 重置任务状态 */
+    async resetById(id: number) {
+      return toResult(
+        db
+          .update(tasksTable)
+          .set({
+            status: 'transcoding',
+            errorMessage: null,
+            transcodeProgress: 0,
+            transcodeOutputPath: null
+          })
+          .where(eq(tasksTable.id, id))
+          .returning()
+          .then(files => files[0])
+      );
     }
   };
 };

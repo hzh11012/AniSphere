@@ -45,14 +45,70 @@ export default async function (fastify: FastifyInstance) {
         return reply.badRequest('任务已完成转码');
       }
 
-      // 异步执行转码
-      ffmpegService.transcode({
+      // 执行转码
+      const result = await ffmpegService.transcode({
         taskId: id,
         inputPath: task.filePath,
         outputDir: config.FFMPEG_TRANSCODE_OUTPUT_PATH
       });
 
-      return reply.success('转码任务已创建');
+      if (result.isErr()) {
+        return reply.badRequest(result.error.message);
+      }
+
+      return reply.success('转码任务已加入队列');
+    }
+  );
+
+  /** 重试转码 */
+  fastify.post<{ Params: TranscodeBody }>(
+    '/:id/retry',
+    {
+      preHandler: [authenticate, rbac.requireAnyRole('admin')],
+      schema: {
+        params: TranscodeSchema,
+        response: {
+          200: SuccessResponseSchema()
+        }
+      }
+    },
+    async (request, reply) => {
+      const { id } = request.params;
+
+      const taskResult = await tasksRepository.findById(id);
+      if (taskResult.isErr()) {
+        log.error({ error: taskResult.error }, 'Failed to find task');
+        return reply.internalServerError('查找任务失败');
+      }
+
+      const task = taskResult.value;
+      if (!task) {
+        return reply.notFound('任务不存在');
+      }
+
+      if (task.status !== 'failed') {
+        return reply.badRequest('只允许重试失败任务');
+      }
+
+      // 重置任务
+      const resetResult = await tasksRepository.resetById(id);
+      if (resetResult.isErr()) {
+        log.error({ error: resetResult.error }, 'Failed to reset task');
+        return reply.internalServerError('重置任务状态失败');
+      }
+
+      // 执行转码
+      const result = await ffmpegService.transcode({
+        taskId: id,
+        inputPath: task.filePath,
+        outputDir: config.FFMPEG_TRANSCODE_OUTPUT_PATH
+      });
+
+      if (result.isErr()) {
+        return reply.badRequest(result.error.message);
+      }
+
+      return reply.success('重试任务已加入队列');
     }
   );
 

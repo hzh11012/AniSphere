@@ -44,3 +44,9 @@ export const TaskListSchemaResponse = z.object({
   ),
   total: z.number()
 });
+
+export const DeleteTaskSchema = z.object({
+  id: IdSchema
+});
+
+export type DeleteTaskBody = z.infer<typeof DeleteTaskSchema>;

@@ -1502,12 +1502,6 @@
           "primaryKey": false,
           "notNull": true
         },
-        "cover": {
-          "name": "cover",
-          "type": "varchar(255)",
-          "primaryKey": false,
-          "notNull": true
-        },
         "views": {
           "name": "views",
           "type": "integer",

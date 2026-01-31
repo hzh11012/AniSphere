@@ -1,5 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { HealthResponseSchema } from '../../../schemas/health.js';
+import { SuccessResponseSchema } from '../../../schemas/common.js';
 
 export default async function (fastify: FastifyInstance) {
   fastify.get(
@@ -9,8 +10,7 @@ export default async function (fastify: FastifyInstance) {
         description: 'Health check endpoint',
         tags: ['Health'],
         response: {
-          200: HealthResponseSchema,
-          503: HealthResponseSchema
+          200: SuccessResponseSchema(HealthResponseSchema)
         }
       }
     },

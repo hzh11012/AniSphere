@@ -18,8 +18,6 @@ export const videosTable = pgTable(
     episode: real().notNull(),
     /** 视频链接 */
     url: varchar({ length: 255 }).notNull(),
-    /** 视频封面 */
-    cover: varchar({ length: 255 }).notNull(),
     /** 视频播放次数 */
     views: integer().notNull().default(0),
     ...timestamps
