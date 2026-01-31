@@ -4,7 +4,7 @@ import {
   type TaskListQuery,
   TaskListSchema,
   TaskListSchemaResponse,
-  DeleteTaskBody,
+  type DeleteTaskBody,
   DeleteTaskSchema
 } from '../../../../schemas/webhook.js';
 
@@ -59,8 +59,13 @@ export default async function (fastify: FastifyInstance) {
     async (request, reply) => {
       const { id } = request.params;
 
-      const task = await tasksRepository.findById(id);
-      if (task.isErr() || !task.value) {
+      const existing = await tasksRepository.findById(id);
+      if (existing.isErr()) {
+        log.error({ error: existing.error }, 'Failed to find task');
+        return reply.internalServerError('删除任务记录失败');
+      }
+
+      if (!existing.value) {
         return reply.notFound('任务记录不存在');
       }
 
