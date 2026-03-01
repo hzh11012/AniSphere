@@ -25,7 +25,7 @@ export const SeriesListSchemaResponse = z.object({
       anime: z.array(
         z.object({
           name: z.string(),
-          season: z.string()
+          season: z.number()
         })
       ),
       createdAt: z.date()
