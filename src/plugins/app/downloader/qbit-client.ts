@@ -308,21 +308,13 @@ export class QBitClient {
         if (filter) queryParams.set('filter', filter);
         if (sort) queryParams.set('sort', sort);
         if (reverse) queryParams.set('reverse', 'true');
-        queryParams.set('limit', String(limit));
-        queryParams.set('offset', String(offset));
 
-        const items = await this.fetchWithAuth<TorrentInfo[]>(
+        const all = await this.fetchWithAuth<TorrentInfo[]>(
           `/api/v2/torrents/info?${queryParams.toString()}`
         );
 
-        const countParams = new URLSearchParams();
-        if (tag) countParams.set('tag', tag);
-        if (filter) countParams.set('filter', filter);
-
-        const allForCount = await this.fetchWithAuth<TorrentInfo[]>(
-          `/api/v2/torrents/info?${countParams.toString()}`
-        );
-        const total = allForCount.length;
+        const items = all.slice(offset, offset + limit);
+        const total = all.length;
 
         return {
           items,

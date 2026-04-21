@@ -41,3 +41,12 @@ export const DeleteSeriesSchema = z.object({
 });
 
 export type DeleteSeriesBody = z.infer<typeof DeleteSeriesSchema>;
+
+export const SeriesOptionSchema = z.preprocess(
+  val => val ?? {},
+  z.object({
+    keyword: z.string().optional()
+  })
+);
+
+export type SeriesOptionQuery = z.infer<typeof SeriesOptionSchema>;

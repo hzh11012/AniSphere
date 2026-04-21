@@ -203,6 +203,22 @@ const createTasksRepository = (fastify: FastifyInstance) => {
           .returning()
           .then(files => files[0])
       );
+    },
+
+    /** 将所有转码中的任务标记为失败（服务重启时调用） */
+    async resetTranscodingTasks() {
+      return toResult(
+        db
+          .update(tasksTable)
+          .set({
+            status: 'failed',
+            errorMessage: '服务重启，任务中断',
+            transcodeProgress: 0,
+            transcodeOutputPath: null
+          })
+          .where(eq(tasksTable.status, 'transcoding'))
+          .returning()
+      );
     }
   };
 };

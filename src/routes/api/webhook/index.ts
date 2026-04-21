@@ -9,7 +9,7 @@ export default async function (fastify: FastifyInstance) {
    * qBittorrent 下载完成 Webhook
    *
    * 配置：qBit 设置 -> 下载 -> 下载完成时运行外部程序
-   * 填入：curl -X POST "http://localhost:3000/api/webhook/qbit?hash=%I&tag=%G"
+   * 填入：curl -X POST "http://localhost:3000/api/webhook/qbit?hash=%I&tag=%G&token=你的WEBHOOK_SECRET"
    */
   fastify.post<{ Querystring: WebhookQuery }>(
     '/qbit',
@@ -17,7 +17,11 @@ export default async function (fastify: FastifyInstance) {
       schema: { querystring: WebhookSchema }
     },
     async (request, reply) => {
-      const { hash, tag } = request.query;
+      const { hash, tag, token } = request.query;
+
+      if (token !== fastify.config.QBIT_WEBHOOK_SECRET) {
+        return reply.unauthorized('未授权');
+      }
 
       if (tag !== 'anisphere') {
         return reply.success('非特定标签，已跳过');

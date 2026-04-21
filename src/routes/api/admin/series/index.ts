@@ -1,5 +1,8 @@
 import type { FastifyInstance } from 'fastify';
-import { SuccessResponseSchema } from '../../../../schemas/common.js';
+import {
+  SuccessResponseSchema,
+  OptionSchemaResponse
+} from '../../../../schemas/common.js';
 import {
   type AddSeriesBody,
   AddSeriesSchema,
@@ -7,7 +10,8 @@ import {
   SeriesListSchema,
   SeriesListSchemaResponse,
   type DeleteSeriesBody,
-  DeleteSeriesSchema
+  DeleteSeriesSchema,
+  SeriesOptionSchema
 } from '../../../../schemas/series.js';
 
 export default async function (fastify: FastifyInstance) {
@@ -116,6 +120,31 @@ export default async function (fastify: FastifyInstance) {
       }
 
       return reply.success('删除系列成功');
+    }
+  );
+
+  /** 系列选项 */
+  fastify.get<{ Querystring: { keyword?: string } }>(
+    '/options',
+    {
+      preHandler: [authenticate, rbac.requireAnyRole('admin')],
+      schema: {
+        querystring: SeriesOptionSchema,
+        response: {
+          200: SuccessResponseSchema(OptionSchemaResponse)
+        }
+      }
+    },
+    async (request, reply) => {
+      const { keyword } = request.query;
+      const result = await seriesRepository.findAllOptions({ keyword });
+
+      if (result.isErr()) {
+        log.error({ error: result.error }, 'Failed to get series options');
+        return reply.internalServerError('获取系列选项失败');
+      }
+
+      return reply.success('获取系列选项成功', result.value);
     }
   );
 }

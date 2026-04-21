@@ -124,6 +124,37 @@ const createFFmpegService = (fastify: FastifyInstance) => {
   const initialize = async () => {
     detectedEncoder = await detectEncoder();
     log.info({ encoder: detectedEncoder.name }, '[FFmpeg] encoder initialized');
+
+    // 重置服务重启前中断的转码任务，并清理不完整的输出文件
+    const resetResult = await tasksRepository.resetTranscodingTasks();
+    if (resetResult.isErr()) {
+      log.error(
+        { error: resetResult.error },
+        '[FFmpeg] failed to reset transcoding tasks'
+      );
+    } else if (resetResult.value.length > 0) {
+      log.info(
+        { count: resetResult.value.length },
+        '[FFmpeg] reset interrupted tasks to failed'
+      );
+
+      // 清理中断任务的不完整输出文件
+      for (const task of resetResult.value) {
+        const taskOutputDir = path.join(
+          config.FFMPEG_TRANSCODE_OUTPUT_PATH,
+          `task_${task.id}`
+        );
+        try {
+          await fs.rm(taskOutputDir, { recursive: true, force: true });
+          log.info(
+            { taskId: task.id, dir: taskOutputDir },
+            '[FFmpeg] cleaned up interrupted task output'
+          );
+        } catch {
+          // 目录可能不存在，忽略错误
+        }
+      }
+    }
   };
 
   /**
@@ -406,10 +437,7 @@ const createFFmpegService = (fastify: FastifyInstance) => {
 
         for (const line of lines) {
           if (line.includes('out_time_us')) {
-            const progress = parseProgress(
-              progressBuffer + line,
-              videoInfo.duration
-            );
+            const progress = parseProgress(line, videoInfo.duration);
             if (progress.progress !== undefined) {
               await tasksRepository.updateTranscodeProgress(
                 taskId,

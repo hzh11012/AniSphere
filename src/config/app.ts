@@ -2,6 +2,7 @@ import Fastify, {
   type FastifyInstance,
   type FastifyServerOptions
 } from 'fastify';
+import qs from 'qs';
 import { join } from 'node:path';
 import AutoLoad, { type AutoloadPluginOptions } from '@fastify/autoload';
 import type { LoggerOptions } from 'pino';
@@ -36,7 +37,8 @@ const getLoggerConfig = (): LoggerOptions | boolean => {
 
 const options: AppOptions = {
   logger: getLoggerConfig(),
-  genReqId: () => randomUUID()
+  genReqId: () => randomUUID(),
+  querystringParser: (str: string) => qs.parse(str)
 };
 
 const buildApp = async (

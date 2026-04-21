@@ -1,5 +1,8 @@
 import type { FastifyInstance } from 'fastify';
-import { SuccessResponseSchema } from '../../../../schemas/common.js';
+import {
+  SuccessResponseSchema,
+  OptionSchemaResponse
+} from '../../../../schemas/common.js';
 import {
   TagsListSchema,
   TagsListSchemaResponse,
@@ -38,6 +41,29 @@ export default async function (fastify: FastifyInstance) {
       }
 
       return reply.success('获取标签列表成功', result.value);
+    }
+  );
+
+  /** 标签选项 */
+  fastify.get(
+    '/options',
+    {
+      preHandler: [authenticate, rbac.requireAnyRole('admin')],
+      schema: {
+        response: {
+          200: SuccessResponseSchema(OptionSchemaResponse)
+        }
+      }
+    },
+    async (request, reply) => {
+      const result = await tagsRepository.findAllOptions();
+
+      if (result.isErr()) {
+        log.error({ error: result.error }, 'Failed to get tags options');
+        return reply.internalServerError('获取标签选项失败');
+      }
+
+      return reply.success('获取标签选项成功', result.value);
     }
   );
 }

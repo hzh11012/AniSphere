@@ -34,6 +34,7 @@ declare module 'fastify' {
       QBIT_USERNAME: string;
       QBIT_PASSWORD: string;
       QBIT_DOWNLOAD_PATH: string;
+      QBIT_WEBHOOK_SECRET: string;
       // ffmpeg
       FFMPEG_PATH: string;
       FFMPEG_THREADS: number;
@@ -60,6 +61,7 @@ const schema = {
     'QBIT_USERNAME',
     'QBIT_PASSWORD',
     'QBIT_DOWNLOAD_PATH',
+    'QBIT_WEBHOOK_SECRET',
     'FFMPEG_TRANSCODE_OUTPUT_PATH'
   ],
   properties: {
@@ -95,6 +97,7 @@ const schema = {
     QBIT_USERNAME: { type: 'string' },
     QBIT_PASSWORD: { type: 'string' },
     QBIT_DOWNLOAD_PATH: { type: 'string' },
+    QBIT_WEBHOOK_SECRET: { type: 'string' },
     // ffmpeg
     FFMPEG_PATH: { type: 'string', default: 'ffmpeg' },
     FFMPEG_THREADS: { type: 'number', default: 4 },

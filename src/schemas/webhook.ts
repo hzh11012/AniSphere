@@ -3,7 +3,8 @@ import { PaginationQuerySchema, IdSchema } from './common.js';
 
 export const WebhookSchema = z.object({
   hash: z.string().min(1),
-  tag: z.string().optional()
+  tag: z.string().optional(),
+  token: z.string().min(1)
 });
 
 export type WebhookQuery = z.infer<typeof WebhookSchema>;

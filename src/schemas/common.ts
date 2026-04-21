@@ -34,3 +34,13 @@ export const PaginationQuerySchema = {
   page: z.coerce.number().min(1).optional().default(1),
   pageSize: z.coerce.number().min(1).max(50).optional().default(10)
 };
+
+/**
+ * 选项 Schema
+ */
+export const OptionSchemaResponse = z.array(
+  z.object({
+    label: z.string(),
+    value: z.string()
+  })
+);

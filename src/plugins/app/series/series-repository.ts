@@ -2,8 +2,14 @@ import type { FastifyInstance } from 'fastify';
 import fp from 'fastify-plugin';
 import { seriesTable } from '../../../db/index.js';
 import { toResult } from '../../../utils/result.js';
-import { and, asc, desc, eq, like, sql } from 'drizzle-orm';
-import { SeriesListQuery } from '../../../schemas/series.js';
+import { eq, like, sql } from 'drizzle-orm';
+import {
+  SeriesListQuery,
+  SeriesOptionQuery,
+  AddSeriesBody
+} from '../../../schemas/series.js';
+import { escapeLike } from '../../../utils/like.js';
+import { calcOffset, buildOrderBy } from '../../../utils/paginated-query.js';
 
 declare module 'fastify' {
   interface FastifyInstance {
@@ -40,11 +46,11 @@ const createSeriesRepository = (fastify: FastifyInstance) => {
     },
 
     /** 创建系列 */
-    async create(series: { name: string }) {
+    async create(series: AddSeriesBody) {
       return toResult(
         db
           .insert(seriesTable)
-          .values({ name: series.name })
+          .values(series)
           .returning()
           .then(series => series[0])
       );
@@ -55,32 +61,16 @@ const createSeriesRepository = (fastify: FastifyInstance) => {
       return toResult(
         (async () => {
           const { page, pageSize, keyword, sort, order } = params;
-          const offset = (page - 1) * pageSize;
 
-          // 构建查询条件
-          const conditions = [];
+          const whereClause = keyword
+            ? like(seriesTable.name, `%${escapeLike(keyword)}%`)
+            : undefined;
 
-          if (keyword) {
-            conditions.push(like(seriesTable.name, `%${keyword}%`));
-          }
-
-          const whereClause =
-            conditions.length > 0 ? and(...conditions) : undefined;
-
-          // 排序
-          const orderByColumn = {
-            createdAt: seriesTable.createdAt
-          }[sort];
-
-          const orderBy =
-            order === 'asc' ? asc(orderByColumn) : desc(orderByColumn);
-
-          // 查询数据
           const items = await db.query.seriesTable.findMany({
             where: whereClause,
-            orderBy: orderBy,
+            orderBy: buildOrderBy(seriesTable[sort], order),
             limit: pageSize,
-            offset: offset,
+            offset: calcOffset(page, pageSize),
             with: {
               anime: {
                 columns: {
@@ -91,18 +81,12 @@ const createSeriesRepository = (fastify: FastifyInstance) => {
             }
           });
 
-          // 查询总数
           const countResult = await db
             .select({ count: sql<number>`count(*)` })
             .from(seriesTable)
             .where(whereClause);
 
-          const total = Number(countResult[0]?.count ?? 0);
-
-          return {
-            items,
-            total
-          };
+          return { items, total: Number(countResult[0]?.count ?? 0) };
         })()
       );
     },
@@ -115,6 +99,27 @@ const createSeriesRepository = (fastify: FastifyInstance) => {
           .where(eq(seriesTable.id, id))
           .returning()
           .then(series => series[0])
+      );
+    },
+
+    /** 查询选项 */
+    async findAllOptions(params: SeriesOptionQuery) {
+      return toResult(
+        (async () => {
+          const { keyword } = params;
+
+          const whereClause = keyword
+            ? like(seriesTable.name, `%${escapeLike(keyword)}%`)
+            : undefined;
+
+          return db
+            .select({
+              label: seriesTable.name,
+              value: sql<string>`${seriesTable.id}::text`
+            })
+            .from(seriesTable)
+            .where(whereClause);
+        })()
       );
     }
   };
