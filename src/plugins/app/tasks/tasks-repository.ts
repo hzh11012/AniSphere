@@ -70,26 +70,24 @@ const createTasksRepository = (fastify: FastifyInstance) => {
           const orderBy =
             order === 'asc' ? asc(orderByColumn) : desc(orderByColumn);
 
-          // 查询数据
-          const items = await db
-            .select()
-            .from(tasksTable)
-            .where(whereClause)
-            .orderBy(orderBy)
-            .limit(pageSize)
-            .offset(offset);
-
-          // 查询总数
-          const countResult = await db
-            .select({ count: sql<number>`count(*)` })
-            .from(tasksTable)
-            .where(whereClause);
-
-          const total = Number(countResult[0]?.count ?? 0);
+          // 并行查询数据和总数
+          const [items, countResult] = await Promise.all([
+            db
+              .select()
+              .from(tasksTable)
+              .where(whereClause)
+              .orderBy(orderBy)
+              .limit(pageSize)
+              .offset(offset),
+            db
+              .select({ count: sql<number>`count(*)` })
+              .from(tasksTable)
+              .where(whereClause)
+          ]);
 
           return {
             items,
-            total
+            total: Number(countResult[0]?.count ?? 0)
           };
         })()
       );

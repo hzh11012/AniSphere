@@ -3,7 +3,11 @@ import fp from 'fastify-plugin';
 import { animeTable, animeToTagsTable } from '../../../db/index.js';
 import { toResult } from '../../../utils/result.js';
 import { and, eq, inArray, like, sql } from 'drizzle-orm';
-import { AddAnimeBody, AnimeListQuery } from '../../../schemas/anime.js';
+import {
+  AddAnimeBody,
+  AnimeListQuery,
+  UpdateAnimeBody
+} from '../../../schemas/anime.js';
 import { escapeLike } from '../../../utils/like.js';
 import { calcOffset, buildOrderBy } from '../../../utils/paginated-query.js';
 
@@ -76,6 +80,30 @@ const createAnimeRepository = (fastify: FastifyInstance) => {
       );
     },
 
+    /** 更新番剧 */
+    async update(anime: UpdateAnimeBody) {
+      const { id, tags, ...animeData } = anime;
+      return toResult(
+        db.transaction(async tx => {
+          if (Object.keys(animeData).length > 0) {
+            await tx
+              .update(animeTable)
+              .set(animeData)
+              .where(eq(animeTable.id, id));
+          }
+
+          if (tags) {
+            await tx
+              .delete(animeToTagsTable)
+              .where(eq(animeToTagsTable.animeId, id));
+            await tx
+              .insert(animeToTagsTable)
+              .values(tags.map(tagId => ({ animeId: id, tagId })));
+          }
+        })
+      );
+    },
+
     /** 查询列表 */
     async findAll(params: AnimeListQuery) {
       return toResult(
@@ -130,25 +158,26 @@ const createAnimeRepository = (fastify: FastifyInstance) => {
           const whereClause =
             conditions.length > 0 ? and(...conditions) : undefined;
 
-          const items = await db.query.animeTable.findMany({
-            where: whereClause,
-            orderBy: buildOrderBy(animeTable[sort], order),
-            limit: pageSize,
-            offset: calcOffset(page, pageSize),
-            with: {
-              tags: {
-                columns: {},
-                with: {
-                  tag: { columns: { id: true, name: true } }
+          const [items, countResult] = await Promise.all([
+            db.query.animeTable.findMany({
+              where: whereClause,
+              orderBy: buildOrderBy(animeTable[sort], order),
+              limit: pageSize,
+              offset: calcOffset(page, pageSize),
+              with: {
+                tags: {
+                  columns: {},
+                  with: {
+                    tag: { columns: { id: true, name: true } }
+                  }
                 }
               }
-            }
-          });
-
-          const countResult = await db
-            .select({ count: sql<number>`count(*)` })
-            .from(animeTable)
-            .where(whereClause);
+            }),
+            db
+              .select({ count: sql<number>`count(*)` })
+              .from(animeTable)
+              .where(whereClause)
+          ]);
 
           return {
             items: items.map(item => ({

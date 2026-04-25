@@ -1,3 +1,4 @@
 {
-  "*.{js,jsx,ts,tsx}": "pnpm lint --fix --no-warn-ignored"
+  "*.{js,jsx,ts,tsx}": ["prettier --write", "pnpm lint --fix --no-warn-ignored"],
+  "*.{json,css,md}": "prettier --write"
 }

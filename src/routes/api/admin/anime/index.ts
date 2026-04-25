@@ -5,7 +5,9 @@ import {
   AddAnimeSchema,
   type AnimeListQuery,
   AnimeListSchema,
-  AnimeListSchemaResponse
+  AnimeListSchemaResponse,
+  type UpdateAnimeBody,
+  UpdateAnimeSchema
 } from '../../../../schemas/anime.js';
 
 export default async function (fastify: FastifyInstance) {
@@ -107,6 +109,93 @@ export default async function (fastify: FastifyInstance) {
       }
 
       return reply.success('获取番剧列表成功', result.value);
+    }
+  );
+
+  /** 编辑番剧 */
+  fastify.put<{ Body: UpdateAnimeBody }>(
+    '/',
+    {
+      preHandler: [authenticate, rbac.requireAnyRole('admin')],
+      schema: {
+        body: UpdateAnimeSchema,
+        response: {
+          200: SuccessResponseSchema()
+        }
+      }
+    },
+    async (request, reply) => {
+      const { id, seriesId, season, tags, ...rest } = request.body;
+
+      const existingAnime = await animeRepository.findById(id);
+      if (existingAnime.isErr()) {
+        log.error({ error: existingAnime.error }, 'Failed to find anime');
+        return reply.internalServerError('编辑番剧失败');
+      }
+
+      if (!existingAnime.value) {
+        return reply.notFound('番剧不存在');
+      }
+
+      if (seriesId !== undefined) {
+        const existingSeries = await seriesRepository.findById(seriesId);
+        if (existingSeries.isErr()) {
+          log.error({ error: existingSeries.error }, 'Failed to find series');
+          return reply.internalServerError('编辑番剧失败');
+        }
+
+        if (!existingSeries.value) {
+          return reply.notFound('系列不存在');
+        }
+      }
+
+      if (tags !== undefined) {
+        const existingTags = await tagsRepository.findByIds(tags);
+        if (existingTags.isErr()) {
+          log.error({ error: existingTags.error }, 'Failed to find tags');
+          return reply.internalServerError('编辑番剧失败');
+        }
+
+        const existingTagsArr = existingTags.value;
+        if (existingTagsArr.length !== tags.length) {
+          const missingTags = tags.filter(
+            id => !existingTagsArr.some(p => p.id === id)
+          );
+          return reply.notFound(`标签不存在：${missingTags.join(', ')}`);
+        }
+      }
+
+      if (seriesId !== undefined || season !== undefined) {
+        const checkSeriesId = seriesId ?? existingAnime.value.seriesId;
+        const checkSeason = season ?? existingAnime.value.season;
+        const duplicate = await animeRepository.findBySeriesAndSeason(
+          checkSeriesId,
+          checkSeason
+        );
+        if (duplicate.isErr()) {
+          log.error({ error: duplicate.error }, 'Failed to find anime');
+          return reply.internalServerError('编辑番剧失败');
+        }
+
+        if (duplicate.value && duplicate.value.id !== id) {
+          return reply.conflict('该系列下已存在相同季的番剧');
+        }
+      }
+
+      const result = await animeRepository.update({
+        id,
+        seriesId,
+        season,
+        tags,
+        ...rest
+      });
+
+      if (result.isErr()) {
+        log.error({ error: result.error }, 'Failed to update anime');
+        return reply.internalServerError('编辑番剧失败');
+      }
+
+      return reply.success('编辑番剧成功');
     }
   );
 }

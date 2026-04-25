@@ -21,6 +21,29 @@ export const AddAnimeSchema = z.object({
 
 export type AddAnimeBody = z.infer<typeof AddAnimeSchema>;
 
+export const UpdateAnimeSchema = z.object({
+  id: IdSchema,
+  seriesId: IdSchema.optional(),
+  name: z.string().min(1).max(100).optional(),
+  description: z.string().min(1).max(1000).optional(),
+  remark: z.string().min(1).max(25).optional(),
+  cover: z.string().min(1).max(255).optional(),
+  banner: z.string().min(1).max(255).optional(),
+  status: z.enum(['draft', 'upcoming', 'airing', 'completed']).optional(),
+  type: z
+    .enum(['movie', 'japanese', 'american', 'chinese', 'adult'])
+    .optional(),
+  year: z.coerce.number().min(1990).max(new Date().getFullYear()).optional(),
+  month: z.enum(['january', 'april', 'july', 'october']).optional(),
+  director: z.string().min(1).max(25).optional(),
+  cv: z.string().min(1).max(1000).optional(),
+  season: z.coerce.number().min(1).max(100).optional(),
+  seasonName: z.string().min(1).max(25).optional(),
+  tags: z.array(IdSchema).min(1).optional()
+});
+
+export type UpdateAnimeBody = z.infer<typeof UpdateAnimeSchema>;
+
 export const AnimeListSchema = z.preprocess(
   val => val ?? {},
   z.object({

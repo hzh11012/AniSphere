@@ -66,25 +66,26 @@ const createSeriesRepository = (fastify: FastifyInstance) => {
             ? like(seriesTable.name, `%${escapeLike(keyword)}%`)
             : undefined;
 
-          const items = await db.query.seriesTable.findMany({
-            where: whereClause,
-            orderBy: buildOrderBy(seriesTable[sort], order),
-            limit: pageSize,
-            offset: calcOffset(page, pageSize),
-            with: {
-              anime: {
-                columns: {
-                  name: true,
-                  season: true
+          const [items, countResult] = await Promise.all([
+            db.query.seriesTable.findMany({
+              where: whereClause,
+              orderBy: buildOrderBy(seriesTable[sort], order),
+              limit: pageSize,
+              offset: calcOffset(page, pageSize),
+              with: {
+                anime: {
+                  columns: {
+                    name: true,
+                    season: true
+                  }
                 }
               }
-            }
-          });
-
-          const countResult = await db
-            .select({ count: sql<number>`count(*)` })
-            .from(seriesTable)
-            .where(whereClause);
+            }),
+            db
+              .select({ count: sql<number>`count(*)` })
+              .from(seriesTable)
+              .where(whereClause)
+          ]);
 
           return { items, total: Number(countResult[0]?.count ?? 0) };
         })()

@@ -62,17 +62,18 @@ const createTagsRepository = (fastify: FastifyInstance) => {
             ? like(tagsTable.name, `%${escapeLike(keyword)}%`)
             : undefined;
 
-          const items = await db.query.tagsTable.findMany({
-            where: whereClause,
-            orderBy: buildOrderBy(tagsTable[sort], order),
-            limit: pageSize,
-            offset: calcOffset(page, pageSize)
-          });
-
-          const countResult = await db
-            .select({ count: sql<number>`count(*)` })
-            .from(tagsTable)
-            .where(whereClause);
+          const [items, countResult] = await Promise.all([
+            db.query.tagsTable.findMany({
+              where: whereClause,
+              orderBy: buildOrderBy(tagsTable[sort], order),
+              limit: pageSize,
+              offset: calcOffset(page, pageSize)
+            }),
+            db
+              .select({ count: sql<number>`count(*)` })
+              .from(tagsTable)
+              .where(whereClause)
+          ]);
 
           return { items, total: Number(countResult[0]?.count ?? 0) };
         })()
