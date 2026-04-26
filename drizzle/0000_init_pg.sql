@@ -209,14 +209,14 @@ BEGIN
 
 	UPDATE anime
 	SET
-		-- 计算平均分
+		-- 计算平均分（仅审核通过的评分）
 		avg_score = COALESCE(
-			(SELECT AVG(score)::real FROM scores WHERE anime_id = target_anime_id),
+			(SELECT AVG(score)::real FROM scores WHERE anime_id = target_anime_id AND status = true),
 			0
     	),
-		-- 计算评分数量
+		-- 计算评分数量（仅审核通过的评分）
 		score_count = (
-			SELECT COUNT(*) FROM scores WHERE anime_id = target_anime_id
+			SELECT COUNT(*) FROM scores WHERE anime_id = target_anime_id AND status = true
 		),
 		-- 更新修改时间
     	updated_at = NOW()
