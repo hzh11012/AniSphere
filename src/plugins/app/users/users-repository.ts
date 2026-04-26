@@ -1,9 +1,10 @@
 import type { FastifyInstance } from 'fastify';
 import fp from 'fastify-plugin';
-import { eq, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, like, sql } from 'drizzle-orm';
 import { usersTable } from '../../../db/index.js';
 import { toResult } from '../../../utils/result.js';
 import { randomInt } from 'node:crypto';
+import type { UserListQuery } from '../../../schemas/users.js';
 
 declare module 'fastify' {
   interface FastifyInstance {
@@ -61,6 +62,75 @@ const createUsersRepository = (fastify: FastifyInstance) => {
             email: data.email,
             name: data.name ?? this.generateDefaultName()
           })
+          .returning()
+          .then(users => users[0])
+      );
+    },
+
+    /**
+     * 获取用户列表（分页）
+     */
+    async findAll(params: UserListQuery) {
+      return toResult(
+        (async () => {
+          const { page, pageSize, keyword, role, status, sort, order } = params;
+          const offset = (page - 1) * pageSize;
+
+          const conditions = [];
+
+          if (keyword) {
+            conditions.push(like(usersTable.name, `%${keyword}%`));
+          }
+
+          if (role && role.length > 0) {
+            conditions.push(inArray(usersTable.role, role));
+          }
+
+          if (status && status.length > 0) {
+            conditions.push(inArray(usersTable.status, status));
+          }
+
+          const whereClause =
+            conditions.length > 0 ? and(...conditions) : undefined;
+
+          const orderByColumn = {
+            createdAt: usersTable.createdAt
+          }[sort];
+
+          const orderBy =
+            order === 'asc' ? asc(orderByColumn) : desc(orderByColumn);
+
+          const [items, countResult] = await Promise.all([
+            db
+              .select()
+              .from(usersTable)
+              .where(whereClause)
+              .orderBy(orderBy)
+              .limit(pageSize)
+              .offset(offset),
+            db
+              .select({ count: sql<number>`count(*)` })
+              .from(usersTable)
+              .where(whereClause)
+          ]);
+
+          return {
+            items,
+            total: Number(countResult[0]?.count ?? 0)
+          };
+        })()
+      );
+    },
+
+    /**
+     * 更新用户信息
+     */
+    async update(id: number, data: Record<string, unknown>) {
+      return toResult(
+        db
+          .update(usersTable)
+          .set(data)
+          .where(eq(usersTable.id, id))
           .returning()
           .then(users => users[0])
       );

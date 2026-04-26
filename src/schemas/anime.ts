@@ -21,8 +21,13 @@ export const AddAnimeSchema = z.object({
 
 export type AddAnimeBody = z.infer<typeof AddAnimeSchema>;
 
-export const UpdateAnimeSchema = z.object({
-  id: IdSchema,
+export const UpdateAnimeParamsSchema = z.object({
+  id: IdSchema
+});
+
+export type UpdateAnimeParams = z.infer<typeof UpdateAnimeParamsSchema>;
+
+export const UpdateAnimeBodySchema = z.object({
   seriesId: IdSchema.optional(),
   name: z.string().min(1).max(100).optional(),
   description: z.string().min(1).max(1000).optional(),
@@ -42,7 +47,7 @@ export const UpdateAnimeSchema = z.object({
   tags: z.array(IdSchema).min(1).optional()
 });
 
-export type UpdateAnimeBody = z.infer<typeof UpdateAnimeSchema>;
+export type UpdateAnimeBody = z.infer<typeof UpdateAnimeBodySchema>;
 
 export const AnimeListSchema = z.preprocess(
   val => val ?? {},

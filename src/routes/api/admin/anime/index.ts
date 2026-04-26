@@ -6,8 +6,10 @@ import {
   type AnimeListQuery,
   AnimeListSchema,
   AnimeListSchemaResponse,
+  type UpdateAnimeParams,
+  UpdateAnimeParamsSchema,
   type UpdateAnimeBody,
-  UpdateAnimeSchema
+  UpdateAnimeBodySchema
 } from '../../../../schemas/anime.js';
 
 export default async function (fastify: FastifyInstance) {
@@ -113,19 +115,21 @@ export default async function (fastify: FastifyInstance) {
   );
 
   /** 编辑番剧 */
-  fastify.put<{ Body: UpdateAnimeBody }>(
-    '/',
+  fastify.put<{ Params: UpdateAnimeParams; Body: UpdateAnimeBody }>(
+    '/:id',
     {
       preHandler: [authenticate, rbac.requireAnyRole('admin')],
       schema: {
-        body: UpdateAnimeSchema,
+        params: UpdateAnimeParamsSchema,
+        body: UpdateAnimeBodySchema,
         response: {
           200: SuccessResponseSchema()
         }
       }
     },
     async (request, reply) => {
-      const { id, seriesId, season, tags, ...rest } = request.body;
+      const { id } = request.params;
+      const { seriesId, season, tags, ...rest } = request.body;
 
       const existingAnime = await animeRepository.findById(id);
       if (existingAnime.isErr()) {
@@ -182,8 +186,7 @@ export default async function (fastify: FastifyInstance) {
         }
       }
 
-      const result = await animeRepository.update({
-        id,
+      const result = await animeRepository.update(id, {
         seriesId,
         season,
         tags,

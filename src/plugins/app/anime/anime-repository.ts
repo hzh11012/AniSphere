@@ -81,8 +81,8 @@ const createAnimeRepository = (fastify: FastifyInstance) => {
     },
 
     /** 更新番剧 */
-    async update(anime: UpdateAnimeBody) {
-      const { id, tags, ...animeData } = anime;
+    async update(id: number, anime: UpdateAnimeBody) {
+      const { tags, ...animeData } = anime;
       return toResult(
         db.transaction(async tx => {
           if (Object.keys(animeData).length > 0) {
