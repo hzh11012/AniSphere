@@ -3,7 +3,7 @@ import { timestamps } from '../columns.helpers.js';
 import { usersTable } from '../users/index.js';
 import { animeTable } from '../anime/index.js';
 
-/** 收藏表 */
+/** 追番表 */
 export const collectionsTable = pgTable(
   'collections',
   {

@@ -140,7 +140,7 @@ export const topicsRelations = relations(topicsTable, ({ many }) => ({
   animeToTopics: many(animeToTopicsTable)
 }));
 
-/** 收藏表关系 */
+/** 追番表关系 */
 export const collectionsRelations = relations(collectionsTable, ({ one }) => ({
   user: one(usersTable, {
     fields: [collectionsTable.userId],
