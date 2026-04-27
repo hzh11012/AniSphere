@@ -10,8 +10,7 @@ import {
   SeriesListSchema,
   SeriesListSchemaResponse,
   type DeleteSeriesBody,
-  DeleteSeriesSchema,
-  SeriesOptionSchema
+  DeleteSeriesSchema
 } from '../../../../schemas/series.js';
 
 export default async function (fastify: FastifyInstance) {
@@ -124,20 +123,18 @@ export default async function (fastify: FastifyInstance) {
   );
 
   /** 系列选项 */
-  fastify.get<{ Querystring: { keyword?: string } }>(
+  fastify.get(
     '/options',
     {
       preHandler: [authenticate, rbac.requireAnyRole('admin')],
       schema: {
-        querystring: SeriesOptionSchema,
         response: {
           200: SuccessResponseSchema(OptionSchemaResponse)
         }
       }
     },
     async (request, reply) => {
-      const { keyword } = request.query;
-      const result = await seriesRepository.findAllOptions({ keyword });
+      const result = await seriesRepository.findAllOptions();
 
       if (result.isErr()) {
         log.error({ error: result.error }, 'Failed to get series options');

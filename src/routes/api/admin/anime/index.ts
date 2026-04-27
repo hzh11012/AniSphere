@@ -1,5 +1,8 @@
 import type { FastifyInstance } from 'fastify';
-import { SuccessResponseSchema } from '../../../../schemas/common.js';
+import {
+  SuccessResponseSchema,
+  OptionSchemaResponse
+} from '../../../../schemas/common.js';
 import {
   type AddAnimeBody,
   AddAnimeSchema,
@@ -111,6 +114,29 @@ export default async function (fastify: FastifyInstance) {
       }
 
       return reply.success('获取番剧列表成功', result.value);
+    }
+  );
+
+  /** 番剧选项 */
+  fastify.get(
+    '/options',
+    {
+      preHandler: [authenticate, rbac.requireAnyRole('admin')],
+      schema: {
+        response: {
+          200: SuccessResponseSchema(OptionSchemaResponse)
+        }
+      }
+    },
+    async (request, reply) => {
+      const result = await animeRepository.findAllOptions();
+
+      if (result.isErr()) {
+        log.error({ error: result.error }, 'Failed to get anime options');
+        return reply.internalServerError('获取番剧选项失败');
+      }
+
+      return reply.success('获取番剧选项成功', result.value);
     }
   );
 

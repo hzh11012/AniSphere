@@ -188,6 +188,18 @@ const createAnimeRepository = (fastify: FastifyInstance) => {
           };
         })()
       );
+    },
+
+    /** 查询番剧选项 */
+    async findAllOptions() {
+      return toResult(
+        db
+          .select({
+            label: sql<string>`${animeTable.name} || ' ' || coalesce(${animeTable.seasonName}, '第' || ${animeTable.season} || '季')`,
+            value: sql<string>`${animeTable.id}::text`
+          })
+          .from(animeTable)
+      );
     }
   };
 };

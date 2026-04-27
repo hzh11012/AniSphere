@@ -3,11 +3,7 @@ import fp from 'fastify-plugin';
 import { seriesTable } from '../../../db/index.js';
 import { toResult } from '../../../utils/result.js';
 import { eq, like, sql } from 'drizzle-orm';
-import {
-  SeriesListQuery,
-  SeriesOptionQuery,
-  AddSeriesBody
-} from '../../../schemas/series.js';
+import { SeriesListQuery, AddSeriesBody } from '../../../schemas/series.js';
 import { escapeLike } from '../../../utils/like.js';
 import { calcOffset, buildOrderBy } from '../../../utils/paginated-query.js';
 
@@ -104,23 +100,14 @@ const createSeriesRepository = (fastify: FastifyInstance) => {
     },
 
     /** 查询选项 */
-    async findAllOptions(params: SeriesOptionQuery) {
+    async findAllOptions() {
       return toResult(
-        (async () => {
-          const { keyword } = params;
-
-          const whereClause = keyword
-            ? like(seriesTable.name, `%${escapeLike(keyword)}%`)
-            : undefined;
-
-          return db
-            .select({
-              label: seriesTable.name,
-              value: sql<string>`${seriesTable.id}::text`
-            })
-            .from(seriesTable)
-            .where(whereClause);
-        })()
+        db
+          .select({
+            label: seriesTable.name,
+            value: sql<string>`${seriesTable.id}::text`
+          })
+          .from(seriesTable)
       );
     }
   };
