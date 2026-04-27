@@ -38,7 +38,9 @@ const getLoggerConfig = (): LoggerOptions | boolean => {
 const options: AppOptions = {
   logger: getLoggerConfig(),
   genReqId: () => randomUUID(),
-  querystringParser: (str: string) => qs.parse(str)
+  routerOptions: {
+    querystringParser: (str: string) => qs.parse(str)
+  }
 };
 
 const buildApp = async (

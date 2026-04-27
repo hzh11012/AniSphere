@@ -81,7 +81,7 @@ const createTopicsRepository = (fastify: FastifyInstance) => {
               ...item,
               anime: item.animeToTopics.map(t => ({
                 id: t.anime.id,
-                name: `${t.anime.name} ${t.anime.seasonName ?? `第${t.anime.season}季`}`
+                name: `${t.anime.name}${t.anime.seasonName ? ` ${t.anime.seasonName}` : t.anime.season !== 1 ? ` 第${t.anime.season}季` : ''}`
               }))
             })),
             total: Number(countResult[0]?.count ?? 0)

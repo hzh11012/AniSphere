@@ -195,7 +195,7 @@ const createAnimeRepository = (fastify: FastifyInstance) => {
       return toResult(
         db
           .select({
-            label: sql<string>`${animeTable.name} || ' ' || coalesce(${animeTable.seasonName}, '第' || ${animeTable.season} || '季')`,
+            label: sql<string>`${animeTable.name} || CASE WHEN ${animeTable.seasonName} IS NOT NULL THEN ' ' || ${animeTable.seasonName} WHEN ${animeTable.season} != 1 THEN ' 第' || ${animeTable.season} || '季' ELSE '' END`,
             value: sql<string>`${animeTable.id}::text`
           })
           .from(animeTable)
