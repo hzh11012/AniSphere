@@ -48,6 +48,8 @@ const createCollectionsRepository = (fastify: FastifyInstance) => {
                 anime: {
                   columns: {
                     name: true,
+                    season: true,
+                    seasonName: true,
                     cover: true
                   }
                 }
@@ -60,7 +62,13 @@ const createCollectionsRepository = (fastify: FastifyInstance) => {
           ]);
 
           return {
-            items,
+            items: items.map(item => ({
+              ...item,
+              anime: {
+                name: `${item.anime.name}${item.anime.seasonName ? ` ${item.anime.seasonName}` : item.anime.season !== 1 ? ` 第${item.anime.season}季` : ''}`,
+                cover: item.anime.cover
+              }
+            })),
             total: Number(countResult[0]?.count ?? 0)
           };
         })()
