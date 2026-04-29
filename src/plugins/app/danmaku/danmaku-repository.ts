@@ -60,7 +60,12 @@ const createDanmakuRepository = (fastify: FastifyInstance) => {
                   columns: { episode: true },
                   with: {
                     anime: {
-                      columns: { name: true, season: true, seasonName: true }
+                      columns: {
+                        name: true,
+                        season: true,
+                        seasonName: true,
+                        cover: true
+                      }
                     }
                   }
                 }
@@ -76,7 +81,8 @@ const createDanmakuRepository = (fastify: FastifyInstance) => {
             items: items.map(item => ({
               ...item,
               anime: {
-                name: `${item.video.anime.name}${item.video.anime.seasonName ? ` ${item.video.anime.seasonName}` : item.video.anime.season !== 1 ? ` 第${item.video.anime.season}季` : ''} ${`(第${item.video.episode}集)`}`
+                name: `${item.video.anime.name}${item.video.anime.seasonName ? ` ${item.video.anime.seasonName}` : item.video.anime.season !== 1 ? ` 第${item.video.anime.season}季` : ''} ${`(第${item.video.episode}集)`}`,
+                cover: item.video.anime.cover
               }
             })),
             total: Number(countResult[0]?.count ?? 0)
