@@ -6,6 +6,7 @@ import { and, eq, like, sql } from 'drizzle-orm';
 import type { DanmakuListQuery } from '../../../schemas/danmaku.js';
 import { calcOffset, buildOrderBy } from '../../../utils/paginated-query.js';
 import { escapeLike } from '../../../utils/like.js';
+import { t2s } from '../../../utils/t2s.js';
 
 declare module 'fastify' {
   interface FastifyInstance {
@@ -27,7 +28,7 @@ const createDanmakuRepository = (fastify: FastifyInstance) => {
 
           if (keyword) {
             conditions.push(
-              like(danmakuTable.text, `%${escapeLike(keyword)}%`)
+              like(danmakuTable.text, `%${escapeLike(t2s(keyword))}%`)
             );
           }
 
@@ -41,7 +42,7 @@ const createDanmakuRepository = (fastify: FastifyInstance) => {
           const [items, countResult] = await Promise.all([
             db.query.danmakuTable.findMany({
               where: whereClause,
-              orderBy: buildOrderBy(danmakuTable[sort], order),
+              orderBy: buildOrderBy(danmakuTable[sort], order, danmakuTable.id),
               limit: pageSize,
               offset: calcOffset(page, pageSize),
               columns: {

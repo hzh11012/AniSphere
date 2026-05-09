@@ -5,10 +5,13 @@ export const SettingsInfoSchemaResponse = z.object({
   server: z.object({
     nodeVersion: z.string(),
     environment: z.string(),
-    uptime: z.number()
+    uptime: z.number(),
+    port: z.number(),
+    adminEmail: z.string()
   }),
   /** FFmpeg 信息 */
   ffmpeg: z.object({
+    path: z.string(),
     encoder: z.string(),
     threads: z.number(),
     hlsSegmentTime: z.number(),
@@ -19,12 +22,14 @@ export const SettingsInfoSchemaResponse = z.object({
   /** qBittorrent 信息 */
   qbit: z.object({
     host: z.string(),
-    downloadPath: z.string()
+    downloadPath: z.string(),
+    hostDownloadPath: z.string()
   }),
   /** SMTP 信息 */
   smtp: z.object({
     host: z.string(),
     port: z.number(),
+    secure: z.boolean(),
     from: z.string()
   }),
   /** 数据库连接池信息 */
@@ -43,6 +48,15 @@ export const SettingsInfoSchemaResponse = z.object({
   security: z.object({
     rateLimitMax: z.number(),
     corsOrigins: z.string()
+  }),
+  /** 资源路径配置 */
+  resource: z.object({
+    rootPath: z.string()
+  }),
+  /** TMDB 配置 */
+  tmdb: z.object({
+    imageDomain: z.string(),
+    apiDomain: z.string()
   })
 });
 

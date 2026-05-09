@@ -5,6 +5,7 @@ import { usersTable } from '../../../db/index.js';
 import { toResult } from '../../../utils/result.js';
 import { randomInt } from 'node:crypto';
 import type { UserListQuery } from '../../../schemas/users.js';
+import { t2s } from '../../../utils/t2s.js';
 
 declare module 'fastify' {
   interface FastifyInstance {
@@ -79,7 +80,7 @@ const createUsersRepository = (fastify: FastifyInstance) => {
           const conditions = [];
 
           if (keyword) {
-            conditions.push(like(usersTable.name, `%${keyword}%`));
+            conditions.push(like(usersTable.name, `%${t2s(keyword)}%`));
           }
 
           if (role && role.length > 0) {
@@ -97,15 +98,14 @@ const createUsersRepository = (fastify: FastifyInstance) => {
             createdAt: usersTable.createdAt
           }[sort];
 
-          const orderBy =
-            order === 'asc' ? asc(orderByColumn) : desc(orderByColumn);
+          const orderFn = order === 'asc' ? asc : desc;
 
           const [items, countResult] = await Promise.all([
             db
               .select()
               .from(usersTable)
               .where(whereClause)
-              .orderBy(orderBy)
+              .orderBy(orderFn(orderByColumn), orderFn(usersTable.id))
               .limit(pageSize)
               .offset(offset),
             db

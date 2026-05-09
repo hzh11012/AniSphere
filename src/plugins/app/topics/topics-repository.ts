@@ -10,6 +10,7 @@ import type {
 } from '../../../schemas/topics.js';
 import { calcOffset, buildOrderBy } from '../../../utils/paginated-query.js';
 import { escapeLike } from '../../../utils/like.js';
+import { t2s } from '../../../utils/t2s.js';
 
 declare module 'fastify' {
   interface FastifyInstance {
@@ -30,7 +31,9 @@ const createTopicsRepository = (fastify: FastifyInstance) => {
           const conditions = [];
 
           if (keyword) {
-            conditions.push(like(topicsTable.name, `%${escapeLike(keyword)}%`));
+            conditions.push(
+              like(topicsTable.name, `%${escapeLike(t2s(keyword))}%`)
+            );
           }
 
           if (status && status.length > 0) {
@@ -43,7 +46,7 @@ const createTopicsRepository = (fastify: FastifyInstance) => {
           const [items, countResult] = await Promise.all([
             db.query.topicsTable.findMany({
               where: whereClause,
-              orderBy: buildOrderBy(topicsTable[sort], order),
+              orderBy: buildOrderBy(topicsTable[sort], order, topicsTable.id),
               limit: pageSize,
               offset: calcOffset(page, pageSize),
               columns: {

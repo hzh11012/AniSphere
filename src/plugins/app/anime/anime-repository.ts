@@ -10,6 +10,7 @@ import {
 } from '../../../schemas/anime.js';
 import { escapeLike } from '../../../utils/like.js';
 import { calcOffset, buildOrderBy } from '../../../utils/paginated-query.js';
+import { t2s } from '../../../utils/t2s.js';
 
 declare module 'fastify' {
   interface FastifyInstance {
@@ -42,6 +43,17 @@ const createAnimeRepository = (fastify: FastifyInstance) => {
           .where(eq(animeTable.name, name))
           .limit(1)
           .then(anime => anime[0])
+      );
+    },
+
+    /** 根据名称模糊查找（用于预检匹配） */
+    async findByNameLike(name: string) {
+      return toResult(
+        db
+          .select()
+          .from(animeTable)
+          .where(like(animeTable.name, `%${escapeLike(name)}%`))
+          .limit(5)
       );
     },
 
@@ -125,7 +137,9 @@ const createAnimeRepository = (fastify: FastifyInstance) => {
           const conditions = [];
 
           if (keyword) {
-            conditions.push(like(animeTable.name, `%${escapeLike(keyword)}%`));
+            conditions.push(
+              like(animeTable.name, `%${escapeLike(t2s(keyword))}%`)
+            );
           }
           if (status?.length) {
             conditions.push(inArray(animeTable.status, status));
@@ -161,7 +175,7 @@ const createAnimeRepository = (fastify: FastifyInstance) => {
           const [items, countResult] = await Promise.all([
             db.query.animeTable.findMany({
               where: whereClause,
-              orderBy: buildOrderBy(animeTable[sort], order),
+              orderBy: buildOrderBy(animeTable[sort], order, animeTable.id),
               limit: pageSize,
               offset: calcOffset(page, pageSize),
               with: {

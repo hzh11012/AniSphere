@@ -38,11 +38,11 @@ export default async function (fastify: FastifyInstance) {
 
       // 检查任务状态
       if (task.status === 'transcoding') {
-        return reply.badRequest('任务正在转码中');
+        return reply.conflict('任务正在转码中');
       }
 
       if (task.status === 'transcoded' || task.status === 'completed') {
-        return reply.badRequest('任务已完成转码');
+        return reply.conflict('任务已完成转码');
       }
 
       // 执行转码
@@ -87,7 +87,7 @@ export default async function (fastify: FastifyInstance) {
       }
 
       if (task.status !== 'failed') {
-        return reply.badRequest('只允许重试失败任务');
+        return reply.conflict('只允许重试失败任务');
       }
 
       // 重置任务

@@ -44,6 +44,11 @@ const csrfPlugin = async (fastify: FastifyInstance) => {
   };
 
   fastify.addHook('onRequest', (request, reply, done) => {
+    // 跳过 webhook 路径的 CSRF 检查（第三方回调）
+    if (request.url.startsWith('/api/webhook/')) {
+      return done();
+    }
+
     if (SAFE_METHODS.has(request.method)) {
       // 安全方法：生成 Token 并种 XSRF-TOKEN Cookie，供后续写操作使用
       const token = reply.generateCsrf();

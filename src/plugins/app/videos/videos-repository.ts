@@ -10,6 +10,7 @@ import type {
 } from '../../../schemas/videos.js';
 import { calcOffset, buildOrderBy } from '../../../utils/paginated-query.js';
 import { escapeLike } from '../../../utils/like.js';
+import { t2s } from '../../../utils/t2s.js';
 
 declare module 'fastify' {
   interface FastifyInstance {
@@ -32,7 +33,7 @@ const createVideosRepository = (fastify: FastifyInstance) => {
 
           if (keyword) {
             conditions.push(
-              like(videosTable.title, `%${escapeLike(keyword)}%`)
+              like(videosTable.title, `%${escapeLike(t2s(keyword))}%`)
             );
           }
 
@@ -42,7 +43,7 @@ const createVideosRepository = (fastify: FastifyInstance) => {
           const [items, countResult] = await Promise.all([
             db.query.videosTable.findMany({
               where: whereClause,
-              orderBy: buildOrderBy(videosTable[sort], order),
+              orderBy: buildOrderBy(videosTable[sort], order, videosTable.id),
               limit: pageSize,
               offset: calcOffset(page, pageSize),
               with: {

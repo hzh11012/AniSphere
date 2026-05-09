@@ -6,6 +6,7 @@ import { eq, like, sql } from 'drizzle-orm';
 import { SeriesListQuery, AddSeriesBody } from '../../../schemas/series.js';
 import { escapeLike } from '../../../utils/like.js';
 import { calcOffset, buildOrderBy } from '../../../utils/paginated-query.js';
+import { t2s } from '../../../utils/t2s.js';
 
 declare module 'fastify' {
   interface FastifyInstance {
@@ -59,13 +60,13 @@ const createSeriesRepository = (fastify: FastifyInstance) => {
           const { page, pageSize, keyword, sort, order } = params;
 
           const whereClause = keyword
-            ? like(seriesTable.name, `%${escapeLike(keyword)}%`)
+            ? like(seriesTable.name, `%${escapeLike(t2s(keyword))}%`)
             : undefined;
 
           const [items, countResult] = await Promise.all([
             db.query.seriesTable.findMany({
               where: whereClause,
-              orderBy: buildOrderBy(seriesTable[sort], order),
+              orderBy: buildOrderBy(seriesTable[sort], order, seriesTable.id),
               limit: pageSize,
               offset: calcOffset(page, pageSize),
               with: {

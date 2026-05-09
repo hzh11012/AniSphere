@@ -460,7 +460,7 @@ const createFFmpegService = (fastify: FastifyInstance) => {
         activeProcesses.delete(taskId);
 
         if (code === 0) {
-          await tasksRepository.markTranscoded(taskId, playlistPath);
+          await tasksRepository.markTranscoded(taskId, taskOutputDir);
           resolve(
             ok({
               success: true,

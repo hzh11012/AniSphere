@@ -22,7 +22,7 @@ export const TaskListSchema = z.preprocess(
   z.object({
     ...PaginationQuerySchema,
     keyword: z.string().max(500).optional(),
-    status: z.enum(TaskStatus).optional(),
+    status: z.array(z.enum(TaskStatus)).optional(),
     sort: z.enum(['createdAt', 'fileSize']).default('createdAt'),
     order: z.enum(['asc', 'desc']).default('desc')
   })
@@ -51,3 +51,10 @@ export const DeleteTaskSchema = z.object({
 });
 
 export type DeleteTaskBody = z.infer<typeof DeleteTaskSchema>;
+
+export const IngestTaskSchema = z.object({
+  id: IdSchema,
+  path: z.string().min(1).max(25)
+});
+
+export type IngestTaskBody = z.infer<typeof IngestTaskSchema>;

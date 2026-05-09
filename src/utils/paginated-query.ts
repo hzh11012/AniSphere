@@ -9,8 +9,14 @@ export function calcOffset(page: number, pageSize: number): number {
 }
 
 /**
- * 构建排序条件
+ * 构建排序条件（附带 tiebreaker 保证分页稳定）
  */
-export function buildOrderBy(column: PgColumn, order: 'asc' | 'desc'): SQL {
-  return order === 'asc' ? asc(column) : desc(column);
+export function buildOrderBy(
+  column: PgColumn,
+  order: 'asc' | 'desc',
+  tiebreaker?: PgColumn
+): SQL | SQL[] {
+  const primary = order === 'asc' ? asc(column) : desc(column);
+  if (!tiebreaker) return primary;
+  return [primary, order === 'asc' ? asc(tiebreaker) : desc(tiebreaker)];
 }

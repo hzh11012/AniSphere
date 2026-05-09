@@ -4,6 +4,7 @@ import { tasksTable } from '../../../db/index.js';
 import { toResult } from '../../../utils/result.js';
 import { and, asc, desc, eq, inArray, like, sql } from 'drizzle-orm';
 import { TaskListQuery } from '../../../schemas/webhook.js';
+import { t2s } from '../../../utils/t2s.js';
 
 declare module 'fastify' {
   interface FastifyInstance {
@@ -47,28 +48,23 @@ const createTasksRepository = (fastify: FastifyInstance) => {
           const conditions = [];
 
           if (keyword) {
-            conditions.push(like(tasksTable.filename, `%${keyword}%`));
+            conditions.push(like(tasksTable.filename, `%${t2s(keyword)}%`));
           }
 
-          if (status) {
-            if (Array.isArray(status)) {
-              conditions.push(inArray(tasksTable.status, status as any));
-            } else {
-              conditions.push(eq(tasksTable.status, status as any));
-            }
+          if (status?.length) {
+            conditions.push(inArray(tasksTable.status, status));
           }
 
           const whereClause =
             conditions.length > 0 ? and(...conditions) : undefined;
 
-          // 排序
+          // 排序（加 id 作为次级排序，确保分页稳定）
           const orderByColumn = {
             createdAt: tasksTable.createdAt,
             fileSize: tasksTable.fileSize
           }[sort];
 
-          const orderBy =
-            order === 'asc' ? asc(orderByColumn) : desc(orderByColumn);
+          const orderFn = order === 'asc' ? asc : desc;
 
           // 并行查询数据和总数
           const [items, countResult] = await Promise.all([
@@ -76,7 +72,7 @@ const createTasksRepository = (fastify: FastifyInstance) => {
               .select()
               .from(tasksTable)
               .where(whereClause)
-              .orderBy(orderBy)
+              .orderBy(orderFn(orderByColumn), orderFn(tasksTable.id))
               .limit(pageSize)
               .offset(offset),
             db

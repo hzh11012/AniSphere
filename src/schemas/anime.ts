@@ -1,6 +1,16 @@
 import { z } from 'zod';
 import { IdSchema, PaginationQuerySchema } from './common.js';
 
+const animeStatus = ['draft', 'upcoming', 'airing', 'completed'] as const;
+const animeType = [
+  'movie',
+  'japanese',
+  'american',
+  'chinese',
+  'adult'
+] as const;
+const animeMonth = ['january', 'april', 'july', 'october'] as const;
+
 export const AddAnimeSchema = z.object({
   seriesId: IdSchema,
   name: z.string().min(1).max(100),
@@ -8,10 +18,10 @@ export const AddAnimeSchema = z.object({
   remark: z.string().min(1).max(25),
   cover: z.string().min(1).max(255),
   banner: z.string().min(1).max(255),
-  status: z.enum(['draft', 'upcoming', 'airing', 'completed']),
-  type: z.enum(['movie', 'japanese', 'american', 'chinese', 'adult']),
+  status: z.enum(animeStatus),
+  type: z.enum(animeType),
   year: z.coerce.number().min(1990).max(new Date().getFullYear()),
-  month: z.enum(['january', 'april', 'july', 'october']),
+  month: z.enum(animeMonth),
   director: z.string().min(1).max(25),
   cv: z.string().min(1).max(1000),
   season: z.coerce.number().min(1).max(100),
@@ -34,12 +44,10 @@ export const UpdateAnimeBodySchema = z.object({
   remark: z.string().min(1).max(25).optional(),
   cover: z.string().min(1).max(255).optional(),
   banner: z.string().min(1).max(255).optional(),
-  status: z.enum(['draft', 'upcoming', 'airing', 'completed']).optional(),
-  type: z
-    .enum(['movie', 'japanese', 'american', 'chinese', 'adult'])
-    .optional(),
+  status: z.enum(animeStatus).optional(),
+  type: z.enum(animeType).optional(),
   year: z.coerce.number().min(1990).max(new Date().getFullYear()).optional(),
-  month: z.enum(['january', 'april', 'july', 'october']).optional(),
+  month: z.enum(animeMonth).optional(),
   director: z.string().min(1).max(25).optional(),
   cv: z.string().min(1).max(1000).optional(),
   season: z.coerce.number().min(1).max(100).optional(),
@@ -56,12 +64,8 @@ export const AnimeListSchema = z.preprocess(
     keyword: z.string().optional(),
     sort: z.enum(['createdAt']).default('createdAt'),
     order: z.enum(['asc', 'desc']).default('desc'),
-    status: z
-      .array(z.enum(['draft', 'upcoming', 'airing', 'completed']))
-      .optional(),
-    types: z
-      .array(z.enum(['movie', 'japanese', 'american', 'chinese', 'adult']))
-      .optional(),
+    status: z.array(z.enum(animeStatus)).optional(),
+    types: z.array(z.enum(animeType)).optional(),
     tags: z.array(IdSchema).optional(),
     years: z
       .array(
@@ -74,7 +78,7 @@ export const AnimeListSchema = z.preprocess(
           .transform(val => parseInt(val, 10))
       )
       .optional(),
-    months: z.array(z.enum(['january', 'april', 'july', 'october'])).optional()
+    months: z.array(z.enum(animeMonth)).optional()
   })
 );
 
@@ -90,10 +94,10 @@ export const AnimeListSchemaResponse = z.object({
       remark: z.string(),
       cover: z.string(),
       banner: z.string(),
-      status: z.enum(['draft', 'upcoming', 'airing', 'completed']),
-      type: z.enum(['movie', 'japanese', 'american', 'chinese', 'adult']),
+      status: z.enum(animeStatus),
+      type: z.enum(animeType),
       year: z.number(),
-      month: z.enum(['january', 'april', 'july', 'october']),
+      month: z.enum(animeMonth),
       director: z.string(),
       cv: z.string(),
       season: z.number(),

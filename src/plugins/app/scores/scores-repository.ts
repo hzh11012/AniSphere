@@ -6,6 +6,7 @@ import { and, eq, inArray, like, sql } from 'drizzle-orm';
 import type { ScoreListQuery } from '../../../schemas/scores.js';
 import { calcOffset, buildOrderBy } from '../../../utils/paginated-query.js';
 import { escapeLike } from '../../../utils/like.js';
+import { t2s } from '../../../utils/t2s.js';
 
 declare module 'fastify' {
   interface FastifyInstance {
@@ -32,7 +33,7 @@ const createScoresRepository = (fastify: FastifyInstance) => {
                 db
                   .select({ id: usersTable.id })
                   .from(usersTable)
-                  .where(like(usersTable.name, `%${escapeLike(keyword)}%`))
+                  .where(like(usersTable.name, `%${escapeLike(t2s(keyword))}%`))
               )
             );
           }
@@ -47,7 +48,7 @@ const createScoresRepository = (fastify: FastifyInstance) => {
           const [items, countResult] = await Promise.all([
             db.query.scoresTable.findMany({
               where: whereClause,
-              orderBy: buildOrderBy(scoresTable[sort], order),
+              orderBy: buildOrderBy(scoresTable[sort], order, scoresTable.id),
               limit: pageSize,
               offset: calcOffset(page, pageSize),
               with: {

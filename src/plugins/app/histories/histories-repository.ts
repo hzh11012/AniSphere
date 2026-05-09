@@ -6,6 +6,7 @@ import { eq, sql, and, inArray, like } from 'drizzle-orm';
 import type { HistoryListQuery } from '../../../schemas/histories.js';
 import { calcOffset, buildOrderBy } from '../../../utils/paginated-query.js';
 import { escapeLike } from '../../../utils/like.js';
+import { t2s } from '../../../utils/t2s.js';
 
 declare module 'fastify' {
   interface FastifyInstance {
@@ -29,14 +30,18 @@ const createHistoriesRepository = (fastify: FastifyInstance) => {
                 db
                   .select({ id: usersTable.id })
                   .from(usersTable)
-                  .where(like(usersTable.name, `%${escapeLike(keyword)}%`))
+                  .where(like(usersTable.name, `%${escapeLike(t2s(keyword))}%`))
               )
             : undefined;
 
           const [items, countResult] = await Promise.all([
             db.query.historiesTable.findMany({
               where: whereClause,
-              orderBy: buildOrderBy(historiesTable[sort], order),
+              orderBy: buildOrderBy(
+                historiesTable[sort],
+                order,
+                historiesTable.id
+              ),
               limit: pageSize,
               offset: calcOffset(page, pageSize),
               with: {

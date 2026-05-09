@@ -3,7 +3,7 @@ import { isVideoFile, needsTranscode } from '../../../utils/video.js';
 import { WebhookQuery, WebhookSchema } from '../../../schemas/webhook.js';
 
 export default async function (fastify: FastifyInstance) {
-  const { tasksRepository, qbit, log } = fastify;
+  const { tasksRepository, qbit, config, log } = fastify;
 
   /**
    * qBittorrent 下载完成 Webhook
@@ -19,7 +19,7 @@ export default async function (fastify: FastifyInstance) {
     async (request, reply) => {
       const { hash, tag, token } = request.query;
 
-      if (token !== fastify.config.QBIT_WEBHOOK_SECRET) {
+      if (token !== config.QBIT_WEBHOOK_SECRET) {
         return reply.unauthorized('未授权');
       }
 
@@ -62,11 +62,14 @@ export default async function (fastify: FastifyInstance) {
         }
 
         // 创建任务记录
+        const hostDownloadPath =
+          config.QBIT_HOST_DOWNLOAD_PATH || torrentInfo.save_path;
+
         const taskParams = videoFiles.map(f => ({
           torrentHash: hash,
           fileIndex: f.index,
           filename: f.name.split('/').pop() || f.name,
-          filePath: `${torrentInfo.save_path}/${f.name}`,
+          filePath: `${hostDownloadPath}/${f.name}`,
           fileSize: f.size,
           needsTranscode: needsTranscode(f.name)
         }));

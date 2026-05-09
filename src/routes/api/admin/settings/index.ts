@@ -18,9 +18,12 @@ export default async function (fastify: FastifyInstance) {
         server: {
           nodeVersion: process.version,
           environment: config.NODE_ENV,
-          uptime: process.uptime()
+          uptime: process.uptime(),
+          port: config.PORT,
+          adminEmail: config.ADMIN_EMAIL
         },
         ffmpeg: {
+          path: config.FFMPEG_PATH,
           encoder: ffmpegService.getEncoderInfo().name,
           threads: config.FFMPEG_THREADS,
           hlsSegmentTime: config.FFMPEG_HLS_SEGMENT_TIME,
@@ -30,11 +33,13 @@ export default async function (fastify: FastifyInstance) {
         },
         qbit: {
           host: config.QBIT_HOST,
-          downloadPath: config.QBIT_DOWNLOAD_PATH
+          downloadPath: config.QBIT_DOWNLOAD_PATH,
+          hostDownloadPath: config.QBIT_HOST_DOWNLOAD_PATH
         },
         smtp: {
           host: config.SMTP_HOST,
           port: config.SMTP_PORT,
+          secure: config.SMTP_SECURE,
           from: config.SMTP_FROM
         },
         database: {
@@ -50,6 +55,13 @@ export default async function (fastify: FastifyInstance) {
         security: {
           rateLimitMax: config.RATE_LIMIT_MAX,
           corsOrigins: config.CORS_ORIGINS
+        },
+        resource: {
+          rootPath: config.RESOURCE_ROOT_PATH
+        },
+        tmdb: {
+          imageDomain: config.TMDB_IMAGE_DOMAIN,
+          apiDomain: config.TMDB_API_DOMAIN
         }
       });
     }

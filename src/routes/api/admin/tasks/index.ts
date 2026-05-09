@@ -1,3 +1,5 @@
+import { promises as fs } from 'node:fs';
+import path from 'node:path';
 import type { FastifyInstance } from 'fastify';
 import { SuccessResponseSchema } from '../../../../schemas/common.js';
 import {
@@ -5,11 +7,13 @@ import {
   TaskListSchema,
   TaskListSchemaResponse,
   type DeleteTaskBody,
-  DeleteTaskSchema
+  DeleteTaskSchema,
+  IngestTaskSchema,
+  type IngestTaskBody
 } from '../../../../schemas/webhook.js';
 
 export default async function (fastify: FastifyInstance) {
-  const { authenticate, rbac, tasksRepository, log } = fastify;
+  const { authenticate, rbac, tasksRepository, config, log } = fastify;
 
   /** 任务列表 */
   fastify.get<{ Querystring: TaskListQuery }>(
@@ -77,6 +81,78 @@ export default async function (fastify: FastifyInstance) {
       }
 
       return reply.success('删除任务记录成功');
+    }
+  );
+
+  /** 入库：将转码完成的文件移动到指定目录 */
+  fastify.post<{ Body: IngestTaskBody }>(
+    '/ingest',
+    {
+      preHandler: [authenticate, rbac.requireAnyRole('admin')],
+      schema: {
+        body: IngestTaskSchema,
+        response: {
+          200: SuccessResponseSchema()
+        }
+      }
+    },
+    async (request, reply) => {
+      const { id, path: destination } = request.body;
+      const rootDir = config.RESOURCE_ROOT_PATH;
+
+      // 安全检查：目标路径必须在资源根目录下
+      const resolvedDest = path.resolve(rootDir, destination);
+      if (!resolvedDest.startsWith(path.resolve(rootDir))) {
+        return reply.badRequest('非法目标路径');
+      }
+
+      // 查找任务
+      const taskResult = await tasksRepository.findById(id);
+      if (taskResult.isErr()) {
+        log.error({ error: taskResult.error }, 'Failed to find task');
+        return reply.internalServerError('入库失败');
+      }
+
+      const task = taskResult.value;
+      if (!task) {
+        return reply.notFound('任务不存在');
+      }
+
+      if (task.status !== 'transcoded') {
+        return reply.badRequest('任务未完成转码');
+      }
+
+      if (!task.transcodeOutputPath) {
+        return reply.badRequest('转码输出路径为空');
+      }
+
+      // 确保目标目录存在
+      await fs.mkdir(resolvedDest, { recursive: true });
+
+      // 将转码输出目录内的文件移入目标目录（copyFile+unlink 兼容跨挂载点）
+      const sourcePath = task.transcodeOutputPath;
+      const entries = await fs.readdir(sourcePath);
+      await Promise.all(
+        entries.map(async entry => {
+          const src = path.join(sourcePath, entry);
+          const dest = path.join(resolvedDest, entry);
+          await fs.copyFile(src, dest);
+          await fs.unlink(src);
+        })
+      );
+      await fs.rmdir(sourcePath);
+
+      // 标记任务为已完成
+      const updateResult = await tasksRepository.markCompleted(id);
+      if (updateResult.isErr()) {
+        log.error(
+          { error: updateResult.error },
+          'Failed to mark task completed'
+        );
+        return reply.internalServerError('更新任务状态失败');
+      }
+
+      return reply.success('入库成功');
     }
   );
 }

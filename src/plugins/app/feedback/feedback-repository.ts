@@ -9,6 +9,7 @@ import type {
 } from '../../../schemas/feedback.js';
 import { calcOffset, buildOrderBy } from '../../../utils/paginated-query.js';
 import { escapeLike } from '../../../utils/like.js';
+import { t2s } from '../../../utils/t2s.js';
 
 declare module 'fastify' {
   interface FastifyInstance {
@@ -30,7 +31,7 @@ const createFeedbackRepository = (fastify: FastifyInstance) => {
 
           if (keyword) {
             conditions.push(
-              like(feedbackTable.content, `%${escapeLike(keyword)}%`)
+              like(feedbackTable.content, `%${escapeLike(t2s(keyword))}%`)
             );
           }
 
@@ -48,7 +49,11 @@ const createFeedbackRepository = (fastify: FastifyInstance) => {
           const [items, countResult] = await Promise.all([
             db.query.feedbackTable.findMany({
               where: whereClause,
-              orderBy: buildOrderBy(feedbackTable[sort], order),
+              orderBy: buildOrderBy(
+                feedbackTable[sort],
+                order,
+                feedbackTable.id
+              ),
               limit: pageSize,
               offset: calcOffset(page, pageSize),
               columns: {
