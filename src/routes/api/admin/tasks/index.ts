@@ -126,21 +126,15 @@ export default async function (fastify: FastifyInstance) {
         return reply.badRequest('转码输出路径为空');
       }
 
-      // 确保目标目录存在
-      await fs.mkdir(resolvedDest, { recursive: true });
-
-      // 将转码输出目录内的文件移入目标目录（copyFile+unlink 兼容跨挂载点）
       const sourcePath = task.transcodeOutputPath;
-      const entries = await fs.readdir(sourcePath);
-      await Promise.all(
-        entries.map(async entry => {
-          const src = path.join(sourcePath, entry);
-          const dest = path.join(resolvedDest, entry);
-          await fs.copyFile(src, dest);
-          await fs.unlink(src);
-        })
-      );
-      await fs.rmdir(sourcePath);
+      try {
+        await fs.rename(sourcePath, resolvedDest);
+      } catch (e: any) {
+        if (e.code !== 'EXDEV') throw e;
+        await fs.mkdir(path.dirname(resolvedDest), { recursive: true });
+        await fs.cp(sourcePath, resolvedDest, { recursive: true });
+        await fs.rm(sourcePath, { recursive: true, force: true });
+      }
 
       // 标记任务为已完成
       const updateResult = await tasksRepository.markCompleted(id);
