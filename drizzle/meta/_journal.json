@@ -15,6 +15,13 @@
       "when": 1768495336994,
       "tag": "0001_add_qbit_task",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1779128503291,
+      "tag": "0002_remove-ffmpeg",
+      "breakpoints": true
     }
   ]
 }

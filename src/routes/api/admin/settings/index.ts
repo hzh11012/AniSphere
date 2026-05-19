@@ -3,7 +3,7 @@ import { SuccessResponseSchema } from '../../../../schemas/common.js';
 import { SettingsInfoSchemaResponse } from '../../../../schemas/settings.js';
 
 export default async function (fastify: FastifyInstance) {
-  const { authenticate, rbac, config, ffmpegService } = fastify;
+  const { authenticate, rbac, config } = fastify;
 
   fastify.get(
     '/info',
@@ -21,15 +21,6 @@ export default async function (fastify: FastifyInstance) {
           uptime: process.uptime(),
           port: config.PORT,
           adminEmail: config.ADMIN_EMAIL
-        },
-        ffmpeg: {
-          path: config.FFMPEG_PATH,
-          encoder: ffmpegService.getEncoderInfo().name,
-          threads: config.FFMPEG_THREADS,
-          hlsSegmentTime: config.FFMPEG_HLS_SEGMENT_TIME,
-          transcodePath: config.FFMPEG_TRANSCODE_OUTPUT_PATH,
-          activeCount: ffmpegService.getActiveCount(),
-          queueLength: ffmpegService.getQueueLength()
         },
         qbit: {
           host: config.QBIT_HOST,

@@ -36,11 +36,6 @@ declare module 'fastify' {
       QBIT_DOWNLOAD_PATH: string;
       QBIT_HOST_DOWNLOAD_PATH: string;
       QBIT_WEBHOOK_SECRET: string;
-      // ffmpeg
-      FFMPEG_PATH: string;
-      FFMPEG_THREADS: number;
-      FFMPEG_HLS_SEGMENT_TIME: number;
-      FFMPEG_TRANSCODE_OUTPUT_PATH: string;
       // Resource
       RESOURCE_ROOT_PATH: string;
       // TMDB
@@ -69,7 +64,6 @@ const schema = {
     'QBIT_PASSWORD',
     'QBIT_DOWNLOAD_PATH',
     'QBIT_WEBHOOK_SECRET',
-    'FFMPEG_TRANSCODE_OUTPUT_PATH',
     'RESOURCE_ROOT_PATH'
   ],
   properties: {
@@ -107,11 +101,6 @@ const schema = {
     QBIT_DOWNLOAD_PATH: { type: 'string' },
     QBIT_HOST_DOWNLOAD_PATH: { type: 'string' },
     QBIT_WEBHOOK_SECRET: { type: 'string' },
-    // ffmpeg
-    FFMPEG_PATH: { type: 'string', default: 'ffmpeg' },
-    FFMPEG_THREADS: { type: 'number', default: 4 },
-    FFMPEG_HLS_SEGMENT_TIME: { type: 'number', default: 10 },
-    FFMPEG_TRANSCODE_OUTPUT_PATH: { type: 'string' },
     // Resource
     RESOURCE_ROOT_PATH: { type: 'string' },
     // TMDB

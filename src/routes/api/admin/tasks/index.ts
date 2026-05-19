@@ -84,7 +84,7 @@ export default async function (fastify: FastifyInstance) {
     }
   );
 
-  /** 入库：将转码完成的文件移动到指定目录 */
+  /** 入库：将下载完成的文件移动到指定目录 */
   fastify.post<{ Body: IngestTaskBody }>(
     '/ingest',
     {
@@ -118,22 +118,21 @@ export default async function (fastify: FastifyInstance) {
         return reply.notFound('任务不存在');
       }
 
-      if (task.status !== 'transcoded') {
-        return reply.badRequest('任务未完成转码');
+      if (task.status !== 'pending') {
+        return reply.badRequest('任务状态不允许入库');
       }
 
-      if (!task.transcodeOutputPath) {
-        return reply.badRequest('转码输出路径为空');
-      }
+      const sourcePath = task.filePath;
+      const ext = path.extname(task.filename);
+      const targetPath = path.join(resolvedDest, `index${ext}`);
 
-      const sourcePath = task.transcodeOutputPath;
       try {
-        await fs.rename(sourcePath, resolvedDest);
+        await fs.mkdir(resolvedDest, { recursive: true });
+        await fs.rename(sourcePath, targetPath);
       } catch (e: any) {
         if (e.code !== 'EXDEV') throw e;
-        await fs.mkdir(path.dirname(resolvedDest), { recursive: true });
-        await fs.cp(sourcePath, resolvedDest, { recursive: true });
-        await fs.rm(sourcePath, { recursive: true, force: true });
+        await fs.cp(sourcePath, targetPath);
+        await fs.rm(sourcePath, { force: true });
       }
 
       // 标记任务为已完成

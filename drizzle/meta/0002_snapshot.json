@@ -1,6 +1,6 @@
 {
-  "id": "61dfc16e-7a02-4b65-9b8c-144e6848324e",
-  "prevId": "7df1b72d-25db-4929-af99-c1c7207908f7",
+  "id": "9f2cf4ba-69f5-43cb-8379-f43a75fb8d16",
+  "prevId": "61dfc16e-7a02-4b65-9b8c-144e6848324e",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -1541,13 +1541,6 @@
           "primaryKey": false,
           "notNull": true
         },
-        "needs_transcode": {
-          "name": "needs_transcode",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": false
-        },
         "status": {
           "name": "status",
           "type": "task_status",
@@ -1555,25 +1548,6 @@
           "primaryKey": false,
           "notNull": true,
           "default": "'pending'"
-        },
-        "transcode_progress": {
-          "name": "transcode_progress",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
-        "transcode_output_path": {
-          "name": "transcode_output_path",
-          "type": "varchar(1000)",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "error_message": {
-          "name": "error_message",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
         },
         "created_at": {
           "name": "created_at",
@@ -1669,7 +1643,7 @@
     "public.task_status": {
       "name": "task_status",
       "schema": "public",
-      "values": ["pending", "transcoding", "transcoded", "completed", "failed"]
+      "values": ["pending", "completed"]
     }
   },
   "schemas": {},

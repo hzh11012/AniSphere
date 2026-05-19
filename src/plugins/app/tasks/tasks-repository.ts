@@ -18,7 +18,6 @@ interface CreateTaskParams {
   filename: string;
   filePath: string;
   fileSize: number;
-  needsTranscode: boolean;
 }
 
 const createTasksRepository = (fastify: FastifyInstance) => {
@@ -107,64 +106,12 @@ const createTasksRepository = (fastify: FastifyInstance) => {
       return toResult(db.insert(tasksTable).values(files).returning());
     },
 
-    /** 标记开始转码 */
-    async markTranscoding(id: number) {
-      return toResult(
-        db
-          .update(tasksTable)
-          .set({ status: 'transcoding' })
-          .where(eq(tasksTable.id, id))
-          .returning()
-          .then(files => files[0])
-      );
-    },
-
-    /** 更新转码进度 */
-    async updateTranscodeProgress(id: number, progress: number) {
-      return toResult(
-        db
-          .update(tasksTable)
-          .set({ transcodeProgress: progress })
-          .where(eq(tasksTable.id, id))
-          .returning()
-          .then(files => files[0])
-      );
-    },
-
-    /** 标记转码完成 */
-    async markTranscoded(id: number, outputPath: string) {
-      return toResult(
-        db
-          .update(tasksTable)
-          .set({
-            status: 'transcoded',
-            transcodeProgress: 100,
-            transcodeOutputPath: outputPath
-          })
-          .where(eq(tasksTable.id, id))
-          .returning()
-          .then(files => files[0])
-      );
-    },
-
     /** 标记已成功 */
     async markCompleted(id: number) {
       return toResult(
         db
           .update(tasksTable)
           .set({ status: 'completed' })
-          .where(eq(tasksTable.id, id))
-          .returning()
-          .then(files => files[0])
-      );
-    },
-
-    /** 标记失败 */
-    async markFailed(id: number, errorMessage: string) {
-      return toResult(
-        db
-          .update(tasksTable)
-          .set({ status: 'failed', errorMessage })
           .where(eq(tasksTable.id, id))
           .returning()
           .then(files => files[0])
@@ -179,39 +126,6 @@ const createTasksRepository = (fastify: FastifyInstance) => {
           .where(eq(tasksTable.id, id))
           .returning()
           .then(files => files[0])
-      );
-    },
-
-    /** 重置任务状态 */
-    async resetById(id: number) {
-      return toResult(
-        db
-          .update(tasksTable)
-          .set({
-            status: 'transcoding',
-            errorMessage: null,
-            transcodeProgress: 0,
-            transcodeOutputPath: null
-          })
-          .where(eq(tasksTable.id, id))
-          .returning()
-          .then(files => files[0])
-      );
-    },
-
-    /** 将所有转码中的任务标记为失败（服务重启时调用） */
-    async resetTranscodingTasks() {
-      return toResult(
-        db
-          .update(tasksTable)
-          .set({
-            status: 'failed',
-            errorMessage: '服务重启，任务中断',
-            transcodeProgress: 0,
-            transcodeOutputPath: null
-          })
-          .where(eq(tasksTable.status, 'transcoding'))
-          .returning()
       );
     }
   };

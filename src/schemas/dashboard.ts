@@ -59,21 +59,13 @@ export const DashboardStatsSchemaResponse = z.object({
   tasks: z.object({
     /** 待处理 */
     pending: z.number(),
-    /** 转码中 */
-    transcoding: z.number(),
-    /** 转码完成待确认 */
-    transcoded: z.number(),
     /** 已完成 */
-    completed: z.number(),
-    /** 失败 */
-    failed: z.number()
+    completed: z.number()
   }),
   /** 待处理事项 */
   pending: z.object({
     /** 待处理反馈数 */
-    feedbacks: z.number(),
-    /** 失败任务数 */
-    failedTasks: z.number()
+    feedbacks: z.number()
   }),
   /** 运营数据 — 追番排行 Top 10 */
   topCollections: z.array(

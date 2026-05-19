@@ -9,13 +9,7 @@ export const WebhookSchema = z.object({
 
 export type WebhookQuery = z.infer<typeof WebhookSchema>;
 
-const TaskStatus = [
-  'pending',
-  'transcoding',
-  'transcoded',
-  'completed',
-  'failed'
-] as const;
+const TaskStatus = ['pending', 'completed'] as const;
 
 export const TaskListSchema = z.preprocess(
   val => val ?? {},
@@ -36,10 +30,7 @@ export const TaskListSchemaResponse = z.object({
       id: IdSchema,
       filename: z.string(),
       fileSize: z.number(),
-      needsTranscode: z.boolean(),
       status: z.enum(TaskStatus),
-      transcodeProgress: z.number(),
-      errorMessage: z.string().nullish(),
       createdAt: z.date()
     })
   ),

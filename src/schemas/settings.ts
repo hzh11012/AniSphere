@@ -9,16 +9,6 @@ export const SettingsInfoSchemaResponse = z.object({
     port: z.number(),
     adminEmail: z.string()
   }),
-  /** FFmpeg 信息 */
-  ffmpeg: z.object({
-    path: z.string(),
-    encoder: z.string(),
-    threads: z.number(),
-    hlsSegmentTime: z.number(),
-    transcodePath: z.string(),
-    activeCount: z.number(),
-    queueLength: z.number()
-  }),
   /** qBittorrent 信息 */
   qbit: z.object({
     host: z.string(),

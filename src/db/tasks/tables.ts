@@ -1,12 +1,4 @@
-import {
-  bigint,
-  boolean,
-  index,
-  integer,
-  pgTable,
-  text,
-  varchar
-} from 'drizzle-orm/pg-core';
+import { bigint, index, integer, pgTable, varchar } from 'drizzle-orm/pg-core';
 import { timestamps } from '../columns.helpers.js';
 import { taskStatusEnum } from './enum.js';
 
@@ -31,18 +23,9 @@ export const tasksTable = pgTable(
     fileSize: bigint('file_size', { mode: 'number' }).notNull(),
 
     // === 状态信息 ===
-    /** 是否需要转码（非 MP4 为 true） */
-    needsTranscode: boolean('needs_transcode').notNull().default(false),
     /** 任务状态 */
     status: taskStatusEnum().notNull().default('pending'),
-    /** 转码进度 (0-100) */
-    transcodeProgress: integer('transcode_progress').notNull().default(0),
-    /** 转码输出路径 */
-    transcodeOutputPath: varchar('transcode_output_path', { length: 1000 }),
 
-    // === 错误信息 ===
-    /** 错误信息 */
-    errorMessage: text('error_message'),
     ...timestamps
   },
   table => [

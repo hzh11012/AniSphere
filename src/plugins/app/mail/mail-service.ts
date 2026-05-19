@@ -43,7 +43,7 @@ const createMailService = (
      * 发送验证码邮件
      */
     async sendVerificationCode(email: string, code: string) {
-      const subject = '【AniSphere】登录验证码';
+      const subject = '【Qnya】登录验证码';
       const html = `
         <div style="max-width: 600px; margin: 0 auto; padding: 20px; font-family: Arial, sans-serif;">
           <h2 style="color: #333; text-align: center;">登录验证码</h2>
@@ -59,7 +59,7 @@ const createMailService = (
           </p>
         </div>
       `;
-      const text = `【AniSphere】您的登录验证码是：${code}，有效期5分钟，请勿泄露给他人。`;
+      const text = `【Qnya】您的登录验证码是：${code}，有效期5分钟，请勿泄露给他人。`;
 
       return this.send({ to: email, subject, html, text });
     },

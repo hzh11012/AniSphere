@@ -254,14 +254,10 @@ const createDashboardRepository = (fastify: FastifyInstance) => {
             },
             tasks: {
               pending: taskMap['pending'] ?? 0,
-              transcoding: taskMap['transcoding'] ?? 0,
-              transcoded: taskMap['transcoded'] ?? 0,
-              completed: taskMap['completed'] ?? 0,
-              failed: taskMap['failed'] ?? 0
+              completed: taskMap['completed'] ?? 0
             },
             pending: {
-              feedbacks: Number(pendingFeedbacks ?? 0),
-              failedTasks: taskMap['failed'] ?? 0
+              feedbacks: Number(pendingFeedbacks ?? 0)
             },
             topCollections: topCollections.map(r => ({
               ...r,

@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify';
-import { isVideoFile, needsTranscode } from '../../../utils/video.js';
+import { isVideoFile } from '../../../utils/video.js';
 import { WebhookQuery, WebhookSchema } from '../../../schemas/webhook.js';
 
 export default async function (fastify: FastifyInstance) {
@@ -23,7 +23,7 @@ export default async function (fastify: FastifyInstance) {
         return reply.unauthorized('未授权');
       }
 
-      if (tag !== 'anisphere') {
+      if (tag !== 'qnya') {
         return reply.success('非特定标签，已跳过');
       }
 
@@ -70,8 +70,7 @@ export default async function (fastify: FastifyInstance) {
           fileIndex: f.index,
           filename: f.name.split('/').pop() || f.name,
           filePath: `${hostDownloadPath}/${f.name}`,
-          fileSize: f.size,
-          needsTranscode: needsTranscode(f.name)
+          fileSize: f.size
         }));
 
         const createResult = await tasksRepository.createMany(taskParams);

@@ -32,7 +32,7 @@ interface TorrentFile {
 type TorrentUriType = 'torrent' | 'magnet';
 
 interface TorrentQueryParams {
-  /** 标签过滤，默认 'anisphere' */
+  /** 标签过滤，默认 'qnya' */
   tag?: string;
   /** 状态过滤 */
   filter?:
@@ -66,7 +66,7 @@ interface TorrentQueryParams {
 }
 
 /** 默认标签，用于标识本系统添加的种子 */
-const DEFAULT_TAG = 'anisphere';
+const DEFAULT_TAG = 'qnya';
 
 export class QBitClient {
   private cookie: string | null = null;
@@ -270,7 +270,7 @@ export class QBitClient {
   /**
    * 添加下载（带标签）
    * @param uri 种子链接
-   * @param tag 标签，默认 'anisphere'
+   * @param tag 标签，默认 'qnya'
    */
   addTorrent(uri: string, tag = DEFAULT_TAG) {
     return toResult(
