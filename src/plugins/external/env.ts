@@ -58,7 +58,6 @@ const schema = {
     'SMTP_USER',
     'SMTP_PASS',
     'SMTP_FROM',
-    'CORS_ORIGINS',
     'QBIT_HOST',
     'QBIT_USERNAME',
     'QBIT_PASSWORD',
@@ -86,7 +85,7 @@ const schema = {
     SESSION_RENEW_THRESHOLD: { type: 'number', default: 86400000 },
     // Security
     RATE_LIMIT_MAX: { type: 'number', default: 100 },
-    CORS_ORIGINS: { type: 'string' },
+    CORS_ORIGINS: { type: 'string', default: '' },
     // SMTP
     SMTP_HOST: { type: 'string' },
     SMTP_PORT: { type: 'number', default: 465 },
