@@ -72,6 +72,7 @@ const createSeriesRepository = (fastify: FastifyInstance) => {
               with: {
                 anime: {
                   columns: {
+                    id: true,
                     name: true,
                     season: true
                   }

@@ -7,7 +7,11 @@ declare module 'fastify' {
     config: {
       NODE_ENV: string;
       PORT: number;
-      DATABASE_URL: string;
+      POSTGRES_HOST: string;
+      POSTGRES_PORT: number;
+      POSTGRES_USER: string;
+      POSTGRES_PASSWORD: string;
+      POSTGRES_DB: string;
       ADMIN_EMAIL: string;
       RATE_LIMIT_MAX: number;
       CORS_ORIGINS: string;
@@ -42,6 +46,8 @@ declare module 'fastify' {
       TMDB_API_KEY: string;
       TMDB_IMAGE_DOMAIN: string;
       TMDB_API_DOMAIN: string;
+      // MCP
+      MCP_TOKEN: string;
     };
   }
 }
@@ -49,7 +55,7 @@ declare module 'fastify' {
 const schema = {
   type: 'object',
   required: [
-    'DATABASE_URL',
+    'POSTGRES_PASSWORD',
     'ADMIN_EMAIL',
     'REDIS_URL',
     'SESSION_DOMAIN',
@@ -72,7 +78,11 @@ const schema = {
     // Admin
     ADMIN_EMAIL: { type: 'string' },
     // Database
-    DATABASE_URL: { type: 'string' },
+    POSTGRES_HOST: { type: 'string', default: 'localhost' },
+    POSTGRES_PORT: { type: 'number', default: 5432 },
+    POSTGRES_USER: { type: 'string', default: 'qnya' },
+    POSTGRES_PASSWORD: { type: 'string' },
+    POSTGRES_DB: { type: 'string', default: 'qnya' },
     DB_POOL_MAX: { type: 'number', default: 20 },
     DB_POOL_IDLE_TIMEOUT: { type: 'number', default: 30000 },
     DB_POOL_CONNECTION_TIMEOUT: { type: 'number', default: 2000 },
@@ -105,7 +115,9 @@ const schema = {
     // TMDB
     TMDB_API_KEY: { type: 'string' },
     TMDB_IMAGE_DOMAIN: { type: 'string', default: 'image.tmdb.org' },
-    TMDB_API_DOMAIN: { type: 'string', default: 'api.themoviedb.org' }
+    TMDB_API_DOMAIN: { type: 'string', default: 'api.themoviedb.org' },
+    // MCP
+    MCP_TOKEN: { type: 'string', default: '' }
   }
 };
 

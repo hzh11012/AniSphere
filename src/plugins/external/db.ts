@@ -23,8 +23,20 @@ const dbPlugin = async (fastify: FastifyInstance) => {
     );
   }
 
+  const {
+    POSTGRES_HOST,
+    POSTGRES_PORT,
+    POSTGRES_USER,
+    POSTGRES_PASSWORD,
+    POSTGRES_DB
+  } = fastify.config;
+
   const pool = new pg.Pool({
-    connectionString: fastify.config.DATABASE_URL,
+    host: POSTGRES_HOST,
+    port: POSTGRES_PORT,
+    user: POSTGRES_USER,
+    password: POSTGRES_PASSWORD,
+    database: POSTGRES_DB,
     max: fastify.config.DB_POOL_MAX,
     idleTimeoutMillis: fastify.config.DB_POOL_IDLE_TIMEOUT,
     connectionTimeoutMillis: fastify.config.DB_POOL_CONNECTION_TIMEOUT
