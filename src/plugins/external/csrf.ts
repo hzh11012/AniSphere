@@ -44,8 +44,12 @@ const csrfPlugin = async (fastify: FastifyInstance) => {
   };
 
   fastify.addHook('onRequest', (request, reply, done) => {
-    // 跳过 webhook 和认证相关接口的 CSRF 检查
-    if (['/api/webhook/', '/api/auth/'].some(p => request.url.startsWith(p))) {
+    // 跳过 webhook、认证相关接口以及 MCP 接口（Bearer Token 鉴权，无需 CSRF）的 CSRF 检查
+    if (
+      ['/api/webhook/', '/api/auth/', '/api/mcp'].some(p =>
+        request.url.startsWith(p)
+      )
+    ) {
       return done();
     }
 
