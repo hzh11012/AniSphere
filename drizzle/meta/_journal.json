@@ -22,6 +22,20 @@
       "when": 1779128503291,
       "tag": "0002_remove-ffmpeg",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1782035386600,
+      "tag": "0003_superb_stranger",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1752278400000,
+      "tag": "0004_fts_search",
+      "breakpoints": true
     }
   ]
 }

@@ -2,7 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import fp from 'fastify-plugin';
 import { animeTable, animeToTagsTable } from '../../../db/index.js';
 import { toResult } from '../../../utils/result.js';
-import { and, eq, inArray, like, sql } from 'drizzle-orm';
+import { and, eq, inArray, like, notInArray, sql } from 'drizzle-orm';
 import {
   AddAnimeBody,
   AnimeListQuery,
@@ -11,6 +11,7 @@ import {
 import { escapeLike } from '../../../utils/like.js';
 import { calcOffset, buildOrderBy } from '../../../utils/paginated-query.js';
 import { t2s } from '../../../utils/t2s.js';
+import { toPinyin, toInitials } from '../../../utils/pinyin.js';
 
 declare module 'fastify' {
   interface FastifyInstance {
@@ -46,14 +47,38 @@ const createAnimeRepository = (fastify: FastifyInstance) => {
       );
     },
 
-    /** 根据名称模糊查找（用于预检匹配） */
-    async findByNameLike(name: string) {
+    /** 根据名称模糊查找（用于搜索建议） */
+    async findByNameLike(keyword: string, excludeTypes?: string[]) {
+      const escaped = escapeLike(t2s(keyword));
+      const pinyinKw = escapeLike(keyword.toLowerCase());
+      const conditions = [
+        sql`(
+          ${animeTable.name} ILIKE ${'%' + escaped + '%'}
+          OR ${animeTable.namePinyin} ILIKE ${'%' + pinyinKw + '%'}
+          OR ${animeTable.nameInitials} ILIKE ${'%' + pinyinKw + '%'}
+        )`
+      ];
+      if (excludeTypes?.length) {
+        conditions.push(
+          notInArray(
+            animeTable.type,
+            excludeTypes as (typeof animeTable.type._.data)[]
+          )
+        );
+      }
+
       return toResult(
         db
-          .select()
+          .select({
+            id: animeTable.id,
+            name: animeTable.name,
+            namePinyin: animeTable.namePinyin,
+            nameInitials: animeTable.nameInitials,
+            matchedByName: sql<boolean>`${animeTable.name} ILIKE ${'%' + escaped + '%'}`
+          })
           .from(animeTable)
-          .where(like(animeTable.name, `%${escapeLike(name)}%`))
-          .limit(5)
+          .where(and(...conditions))
+          .limit(10)
       );
     },
 
@@ -81,7 +106,11 @@ const createAnimeRepository = (fastify: FastifyInstance) => {
         db.transaction(async tx => {
           const [anime] = await tx
             .insert(animeTable)
-            .values(animeData)
+            .values({
+              ...animeData,
+              namePinyin: toPinyin(animeData.name),
+              nameInitials: toInitials(animeData.name)
+            })
             .returning();
 
           await tx
@@ -98,9 +127,17 @@ const createAnimeRepository = (fastify: FastifyInstance) => {
       return toResult(
         db.transaction(async tx => {
           if (Object.keys(animeData).length > 0) {
+            const updateData: typeof animeData & {
+              namePinyin?: string;
+              nameInitials?: string;
+            } = { ...animeData };
+            if (animeData.name) {
+              updateData.namePinyin = toPinyin(animeData.name);
+              updateData.nameInitials = toInitials(animeData.name);
+            }
             await tx
               .update(animeTable)
-              .set(animeData)
+              .set(updateData)
               .where(eq(animeTable.id, id));
           }
 
