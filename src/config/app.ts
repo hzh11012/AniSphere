@@ -66,6 +66,7 @@ const buildApp = async (
     dir: join(import.meta.dirname, '../routes'),
     autoHooks: true,
     cascadeHooks: true,
+    ignorePattern: /^tools$/,
     options: { ...opts }
   });
 

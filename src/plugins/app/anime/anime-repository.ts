@@ -1,6 +1,11 @@
 import type { FastifyInstance } from 'fastify';
 import fp from 'fastify-plugin';
-import { animeTable, animeToTagsTable } from '../../../db/index.js';
+import {
+  animeTable,
+  animeToTagsTable,
+  videosTable,
+  type AnimeType
+} from '../../../db/index.js';
 import { toResult } from '../../../utils/result.js';
 import { and, eq, inArray, like, notInArray, sql } from 'drizzle-orm';
 import {
@@ -48,7 +53,7 @@ const createAnimeRepository = (fastify: FastifyInstance) => {
     },
 
     /** 根据名称模糊查找（用于搜索建议） */
-    async findByNameLike(keyword: string, excludeTypes?: string[]) {
+    async findByNameLike(keyword: string, excludeTypes?: AnimeType[]) {
       const escaped = escapeLike(t2s(keyword));
       const pinyinKw = escapeLike(keyword.toLowerCase());
       const conditions = [
@@ -59,12 +64,7 @@ const createAnimeRepository = (fastify: FastifyInstance) => {
         )`
       ];
       if (excludeTypes?.length) {
-        conditions.push(
-          notInArray(
-            animeTable.type,
-            excludeTypes as (typeof animeTable.type._.data)[]
-          )
-        );
+        conditions.push(notInArray(animeTable.type, excludeTypes));
       }
 
       return toResult(
@@ -234,6 +234,65 @@ const createAnimeRepository = (fastify: FastifyInstance) => {
             items: items.map(item => ({
               ...item,
               tags: item.tags.map(t => t.tag)
+            })),
+            total: Number(countResult[0]?.count ?? 0)
+          };
+        })()
+      );
+    },
+
+    /** 搜索列表（带视频信息） */
+    async search(
+      keyword: string,
+      page: number,
+      pageSize: number,
+      excludeTypes?: AnimeType[]
+    ) {
+      return toResult(
+        (async () => {
+          const escaped = escapeLike(t2s(keyword));
+          const pinyinKw = escapeLike(keyword.toLowerCase());
+          const conditions = [
+            sql`(
+              ${animeTable.name} ILIKE ${'%' + escaped + '%'}
+              OR ${animeTable.namePinyin} ILIKE ${'%' + pinyinKw + '%'}
+              OR ${animeTable.nameInitials} ILIKE ${'%' + pinyinKw + '%'}
+            )`,
+            notInArray(animeTable.status, ['draft'])
+          ];
+          if (excludeTypes?.length) {
+            conditions.push(notInArray(animeTable.type, excludeTypes));
+          }
+          const whereClause = and(...conditions);
+
+          const [items, countResult] = await Promise.all([
+            db.query.animeTable.findMany({
+              where: whereClause,
+              limit: pageSize,
+              offset: calcOffset(page, pageSize),
+              with: {
+                tags: {
+                  columns: {},
+                  with: { tag: { columns: { id: true, name: true } } }
+                },
+                videos: {
+                  columns: { id: true, episode: true },
+                  orderBy: videosTable.episode
+                }
+              }
+            }),
+            db
+              .select({ count: sql<number>`count(*)` })
+              .from(animeTable)
+              .where(whereClause)
+          ]);
+
+          return {
+            items: items.map(item => ({
+              ...item,
+              tags: item.tags.map(t => t.tag.name),
+              videoCount: item.videos.length,
+              videoId: item.videos.length > 0 ? item.videos[0].id : null
             })),
             total: Number(countResult[0]?.count ?? 0)
           };

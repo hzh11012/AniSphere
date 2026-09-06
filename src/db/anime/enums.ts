@@ -32,6 +32,8 @@ export const animeTypeEnum = pgEnum('anime_type', [
   'adult'
 ]);
 
+export type AnimeType = (typeof animeTypeEnum.enumValues)[number];
+
 /**
  * 动漫月份枚举
  * @enum
